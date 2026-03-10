@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "PythonProject1"
 version = "1.0.0"
-description = "Free Ride 自动化 Python 项目演示"
+description = "贷款还款方式对比动画 - Free Ride 自动化演示项目"
 authors = [{name = "Developer", email = "dev@example.com"}]
 dependencies = [
-    "fastapi>=0.68.0",
-    "uvicorn>=0.15.0",
-    "pydantic>=1.8.0"
+    "numpy>=1.21.0",
+    "matplotlib>=3.4.0",
+    "ffmpeg-python>=0.2.0"
 ]
 requires-python = ">=3.8"
 

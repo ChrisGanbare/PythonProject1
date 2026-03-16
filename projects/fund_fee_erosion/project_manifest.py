@@ -13,5 +13,9 @@ PROJECT_MANIFEST = {
             "callable": "fund_fee_erosion.entrypoints:run_fund_animation",
             "description": "渲染基金手续费侵蚀对比动画 MP4，需要 ffmpeg",
         },
+        "api": {
+            "callable": "fund_fee_erosion.entrypoints:run_api",
+            "description": "启动 FastAPI 服务（默认 0.0.0.0:8001）",
+        },
     },
 }

@@ -26,6 +26,12 @@ def run_smoke_check() -> dict:
     return result
 
 
+def run_api(host: str = "0.0.0.0", port: int = 8001) -> None:
+    """Start FastAPI service for this project."""
+    from fund_fee_erosion.api.main import start_api_server
+    start_api_server(host=host, port=port)
+
+
 def run_fund_animation(
     output_file: str | None = None,
     width: int | None = None,

@@ -1,4 +1,4 @@
-﻿"""FastAPI app for PythonProject1."""
+"""FastAPI app for loan_comparison project."""
 
 from __future__ import annotations
 
@@ -7,31 +7,33 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-# Allow direct execution: `python src/PythonProject1/main.py`
+# Allow direct execution: `python projects/loan_comparison/api/main.py`
 if __package__ in (None, ""):
-    src_root = Path(__file__).resolve().parents[1]
-    if str(src_root) not in sys.path:
-        sys.path.insert(0, str(src_root))
+    _projects_root = Path(__file__).resolve().parents[2]   # projects/
+    _workspace_root = Path(__file__).resolve().parents[3]  # video_project/
+    for _p in [str(_projects_root), str(_workspace_root)]:
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 import uvicorn
 
-from PythonProject1.config.settings import settings
-from PythonProject1.models.loan import LoanData
-from PythonProject1.models.schemas import (
+from shared.config.settings import settings
+from shared.core.task_manager import ProgressTracker, TaskManager
+from shared.media.video_editor import VideoEditor
+from shared.utils.logger import setup_logger
+from loan_comparison.models.loan import LoanData
+from loan_comparison.models.schemas import (
     GenerateVideoRequest,
     HealthCheckResponse,
     LoanSummaryResponse,
-    TaskStatus,
     VideoProgressResponse,
     VideoResultResponse,
     VideoTaskResponse,
 )
-from PythonProject1.modules.content_engine import ContentEngine
-from PythonProject1.modules.task_manager import ProgressTracker, TaskManager
-from PythonProject1.modules.video_editor import VideoEditor
-from PythonProject1.utils.logger import setup_logger
+from loan_comparison.models.schemas import TaskStatus
+from loan_comparison.renderer.animation import ContentEngine
 
 
 logger = setup_logger(

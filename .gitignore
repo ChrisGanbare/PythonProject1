@@ -37,3 +37,6 @@ ENV/
 *.mov
 output/
 D:/PythonProject1/
+
+# Runtime outputs
+runtime/

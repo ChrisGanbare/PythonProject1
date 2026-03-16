@@ -1,6 +1,6 @@
 ﻿from fastapi.testclient import TestClient
 
-from PythonProject1.main import app
+from loan_comparison.api.main import app
 
 
 client = TestClient(app)

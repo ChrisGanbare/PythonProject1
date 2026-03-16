@@ -11,9 +11,8 @@ from orchestrator.runner import parse_params, run_project_task
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-SRC_ROOT = REPO_ROOT / "src"
 PROJECTS_ROOT = REPO_ROOT / "projects"
-for _root in [str(PROJECTS_ROOT), str(SRC_ROOT), str(REPO_ROOT)]:
+for _root in [str(PROJECTS_ROOT), str(REPO_ROOT)]:
     if _root not in sys.path:
         sys.path.insert(0, _root)
 

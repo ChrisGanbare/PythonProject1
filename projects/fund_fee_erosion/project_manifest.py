@@ -4,6 +4,9 @@ PROJECT_MANIFEST = {
     "name": "fund_fee_erosion",
     "description": "基金手续费复利侵蚀可视化 — 数据动画子项目",
     "default_task": "smoke_check",
+    "capabilities": {
+        "viz_backends": ["matplotlib"],
+    },
     "tasks": {
         "smoke_check": {
             "callable": "fund_fee_erosion.entrypoints:run_smoke_check",

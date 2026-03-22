@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from typing import Iterator
 
 from fund_fee_erosion.api.main import app
 
@@ -17,8 +18,9 @@ def _stub_background(monkeypatch):
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> Iterator[TestClient]:
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 class TestHealthCheck:
@@ -86,11 +88,36 @@ class TestFundSummary:
         assert response.status_code == 422
 
 
+class TestContentPreview:
+    def test_preview_content_plan(self, client: TestClient):
+        response = client.post(
+            "/api/content/preview",
+            json={
+                "platform": "douyin",
+                "style": "news",
+                "content_variant": "short",
+                "principal": 1_000_000,
+                "gross_return": 0.08,
+                "years": 30,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["platform"] == "douyin"
+        assert data["style"] == "news"
+        assert data["variant"] == "short"
+        assert len(data["beats"]) == 4
+        assert data["beats"][0]["beat_type"] == "hook"
+        assert data["beats"][0]["narration"].startswith("今天先看这组关键数据")
+        assert data["conclusion_card"]["title"]
+
+
 class TestVideoGeneration:
     def test_generate_video_default(self, client: TestClient):
         response = client.post(
             "/api/generate-video",
-            json={"principal": 1_000_000, "gross_return": 0.08, "years": 30},
+            json={"platform": "douyin", "principal": 1_000_000, "gross_return": 0.08, "years": 30},
         )
         assert response.status_code == 200
         data = response.json()
@@ -98,18 +125,46 @@ class TestVideoGeneration:
         assert data["status"] == "queued"
         assert "created_at" in data
 
+    def test_generate_video_accepts_quality(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={"platform": "douyin", "quality": "preview", "burn_subtitles": False, "principal": 1_000_000, "gross_return": 0.08, "years": 30},
+        )
+        assert response.status_code == 200
+
     def test_generate_video_custom_params(self, client: TestClient):
         response = client.post(
             "/api/generate-video",
-            json={"principal": 2_000_000, "gross_return": 0.10, "years": 20},
+            json={"platform": "douyin", "principal": 2_000_000, "gross_return": 0.10, "years": 20},
         )
         assert response.status_code == 200
         assert response.json()["status"] == "queued"
 
+    def test_generate_video_requires_platform(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={"principal": 1_000_000, "gross_return": 0.08, "years": 30},
+        )
+        assert response.status_code == 422
+
+    def test_generate_video_rejects_invalid_platform_fps(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={"platform": "douyin", "fps": 60, "principal": 1_000_000, "gross_return": 0.08, "years": 30},
+        )
+        assert response.status_code == 422
+
+    def test_generate_video_rejects_invalid_quality(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={"platform": "douyin", "quality": "ultra", "principal": 1_000_000, "gross_return": 0.08, "years": 30},
+        )
+        assert response.status_code == 422
+
     def test_generate_video_invalid_principal(self, client: TestClient):
         response = client.post(
             "/api/generate-video",
-            json={"principal": -1000},
+            json={"platform": "douyin", "principal": -1000},
         )
         assert response.status_code == 422
 
@@ -118,7 +173,7 @@ class TestTaskStatus:
     def test_get_task_status(self, client: TestClient):
         response = client.post(
             "/api/generate-video",
-            json={"principal": 1_000_000, "gross_return": 0.08, "years": 30},
+            json={"platform": "douyin", "principal": 1_000_000, "gross_return": 0.08, "years": 30},
         )
         task_id = response.json()["task_id"]
 
@@ -139,7 +194,7 @@ class TestTaskResult:
     def test_get_task_result(self, client: TestClient):
         response = client.post(
             "/api/generate-video",
-            json={"principal": 1_000_000, "gross_return": 0.08, "years": 30},
+            json={"platform": "douyin", "quality": "preview", "principal": 1_000_000, "gross_return": 0.08, "years": 30},
         )
         task_id = response.json()["task_id"]
 
@@ -148,6 +203,23 @@ class TestTaskResult:
         data = response.json()
         assert data["task_id"] == task_id
         assert data["status"] in ["queued", "processing", "completed", "failed"]
+        assert data["platform"] == "douyin"
+        assert data["quality"] == "preview"
+        assert "content_style" in data
+        assert "content_variant" in data
+        assert "conclusion_card_title" in data
+        assert "theme_name" in data
+        assert "visual_focus" in data
+        assert "subtitle_burned" in data
+        assert "bgm_applied" in data
+        assert "rendered_video_path" in data
+        assert "final_video_path" in data
+        assert "subtitle_path" in data
+        assert "styled_subtitle_path" in data
+        assert "subtitle_render_mode" in data
+        assert "cover_path" in data
+        assert "render_manifest_path" in data
+        assert "render_fingerprint" in data
 
     def test_get_nonexistent_task_result(self, client: TestClient):
         response = client.get("/api/task/nonexistent-id/result")

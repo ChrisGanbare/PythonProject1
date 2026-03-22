@@ -21,6 +21,7 @@ var/
 *.egg
 
 # Virtual Environment
+.venv/
 venv/
 ENV/
 .env
@@ -36,7 +37,9 @@ ENV/
 *.avi
 *.mov
 output/
-D:/PythonProject1/
 
 # Runtime outputs
 runtime/
+
+# Manim media outputs
+media/

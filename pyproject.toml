@@ -38,6 +38,7 @@ dependencies = [
   "requests>=2.28.0",
   "python-dateutil>=2.8.2",
   "python-json-logger>=2.0.0",
+  "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -61,6 +62,10 @@ dev = [
   "pylint>=2.17.0",
   "isort>=5.12.0",
 ]
+# 浏览器模拟点击 + 可选真实 Agent 编译（UAT）；安装： pip install -e ".[uat]"
+uat = [
+  "playwright>=1.40.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/example/video-generation"
@@ -70,9 +75,11 @@ Issues = "https://github.com/example/video-generation/issues"
 
 [project.scripts]
 video-scheduler = "scheduler:main"
+video-dashboard = "dashboard:run_dashboard"
+video-agent = "orchestrator.agent_cli:main"
 
 [tool.setuptools]
-py-modules = ["scheduler"]
+py-modules = ["scheduler", "dashboard"]
 
 [tool.setuptools.packages.find]
 where = [".", "projects"]
@@ -135,6 +142,9 @@ markers = [
   "integration: Integration tests",
   "slow: Slow tests",
   "api: API tests",
+  "video_e2e: Real FFmpeg video render (set VIDEO_PIPELINE_E2E=1)",
+  "browser: Playwright browser UI (needs playwright and chromium)",
+  "agent_uat: 真实 LLM 调用 /api/agent/compile（需 UAT_AGENT_COMPILE=1 与 .env 密钥）",
 ]
 asyncio_mode = "auto"
 

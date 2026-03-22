@@ -8,9 +8,10 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from shared.config.settings import settings
+from shared.utils.time import utc_now
 
 
 class TaskStatus(str, Enum):
@@ -29,9 +30,10 @@ class TaskInfo:
     current_step: str = ""
     eta_seconds: int | None = None
     error_message: str | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
     completed_at: datetime | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -66,6 +68,7 @@ class TaskManager:
                     completed_at=datetime.fromisoformat(payload["completed_at"])
                     if payload.get("completed_at")
                     else None,
+                    metadata=payload.get("metadata", {}),
                 )
                 self._tasks[task.task_id] = task
             except Exception:
@@ -83,8 +86,9 @@ class TaskManager:
             progress=kwargs.get("progress", 0),
             current_step=kwargs.get("current_step", "queued"),
             eta_seconds=kwargs.get("eta_seconds"),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utc_now(),
+            updated_at=utc_now(),
+            metadata=kwargs.get("metadata", {}),
         )
         self._tasks[task_id] = task
         self._persist_task(task)
@@ -107,6 +111,7 @@ class TaskManager:
         current_step: str | None = None,
         eta_seconds: int | None = None,
         error_message: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> TaskInfo | None:
         task = self._tasks.get(task_id)
         if task is None:
@@ -122,11 +127,13 @@ class TaskManager:
             task.eta_seconds = eta_seconds
         if error_message is not None:
             task.error_message = error_message
+        if metadata:
+            task.metadata.update(metadata)
 
-        task.updated_at = datetime.utcnow()
+        task.updated_at = utc_now()
 
         if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
-            task.completed_at = datetime.utcnow()
+            task.completed_at = utc_now()
 
         self._persist_task(task)
 
@@ -140,7 +147,7 @@ class TaskManager:
         self._callbacks[task_id] = callback
 
     def cleanup_old_tasks(self, max_age_hours: int = 168) -> int:
-        cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
+        cutoff = utc_now() - timedelta(hours=max_age_hours)
         removed = 0
 
         for task_id, task in list(self._tasks.items()):

@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from orchestrator.scaffold import generate_project_scaffold
 from orchestrator.registry import ProjectRegistry
 from orchestrator.runner import parse_params, run_project_task
 
@@ -41,6 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Stop immediately when one subproject fails",
     )
+
+    scaffold_parser = subparsers.add_parser("scaffold", help="Generate a minimal new subproject scaffold")
+    scaffold_parser.add_argument("--name", required=True, help="New project name")
+    scaffold_parser.add_argument("--description", help="Optional project description")
+    scaffold_parser.add_argument("--port", type=int, default=8010, help="Default FastAPI port for the scaffold")
 
     return parser
 
@@ -98,6 +104,12 @@ def run_all(registry: ProjectRegistry, stop_on_error: bool) -> int:
     return exit_code
 
 
+def scaffold_project(project_name: str, description: str | None, port: int) -> int:
+    project_root = generate_project_scaffold(REPO_ROOT, project_name=project_name, description=description, port=port)
+    print(f"Project scaffold created: {project_root}")
+    return 0
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -114,6 +126,8 @@ def main() -> int:
         return run_single(registry, args.project, args.task, args.param)
     if command == "run-all":
         return run_all(registry, args.stop_on_error)
+    if command == "scaffold":
+        return scaffold_project(args.name, args.description, args.port)
 
     parser.print_help()
     return 1

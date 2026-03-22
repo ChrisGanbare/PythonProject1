@@ -12,6 +12,22 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+QUALITY_PRESETS: dict[str, dict[str, int | str]] = {
+    "preview": {"dpi": 72, "bitrate": 4000, "preset": "veryfast", "crf": 28},
+    "draft": {"dpi": 108, "bitrate": 6000, "preset": "medium", "crf": 23},
+    "final": {"dpi": 144, "bitrate": 8000, "preset": "slow", "crf": 18},
+}
+
+
+def get_quality_preset(name: str) -> dict[str, int | str]:
+    """返回统一的渲染质量预设。"""
+    preset = QUALITY_PRESETS.get(name)
+    if preset is None:
+        supported = ", ".join(sorted(QUALITY_PRESETS))
+        raise ValueError(f"unsupported quality '{name}'. Supported: {supported}")
+    return dict(preset)
+
+
 def _project_root() -> Path:
     # shared/config/settings.py → parents[2] = workspace root
     return Path(__file__).resolve().parents[2]
@@ -87,6 +103,13 @@ class APIConfig(BaseModel):
     openai_api_key: str | None = Field(default=None, description="OpenAI API key")
     openai_model: str = Field(default="gpt-3.5-turbo", description="OpenAI model")
     openai_timeout: int = Field(default=30, description="OpenAI timeout seconds")
+    screenplay_provider_default: str = Field(default="mock", description="Default screenplay provider")
+    screenplay_provider_fallback: str = Field(default="mock", description="Fallback screenplay provider")
+    screenplay_enabled_providers: list[str] = Field(default_factory=lambda: ["mock", "openai_compatible"])
+    screenplay_allow_provider_override: bool = Field(default=True, description="Allow request-level provider override")
+    openai_compatible_base_url: str | None = Field(default=None, description="OpenAI-compatible API base URL")
+    openai_compatible_api_key: str | None = Field(default=None, description="OpenAI-compatible API key")
+    openai_compatible_model: str = Field(default="", description="OpenAI-compatible model")
     pexels_api_key: str | None = Field(default=None, description="Pexels API key")
     pexels_timeout: int = Field(default=15, description="Pexels timeout seconds")
     pexels_cache_dir: Path = Field(default_factory=lambda: _runtime_root() / "pexels_cache")
@@ -125,6 +148,10 @@ class Settings(BaseSettings):
     project_root: Path = Field(default_factory=_project_root)
     cache_dir: Path = Field(default_factory=lambda: _runtime_root() / "cache")
     temp_dir: Path = Field(default_factory=lambda: _runtime_root() / "temp")
+    library_dir: Path = Field(
+        default_factory=lambda: _runtime_root() / "library",
+        description="Screenplay versions, manifests, and library indexes",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -146,6 +173,7 @@ class Settings(BaseSettings):
             self.log.log_dir,
             self.cache_dir,
             self.temp_dir,
+            self.library_dir,
         ]:
             directory.mkdir(parents=True, exist_ok=True)
 

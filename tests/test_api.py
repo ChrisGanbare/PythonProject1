@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from typing import Iterator
 
 from loan_comparison.api.main import app
 
@@ -17,8 +18,9 @@ def _stub_background(monkeypatch):
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> Iterator[TestClient]:
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 class TestHealthCheck:
@@ -85,6 +87,7 @@ class TestVideoGeneration:
         response = client.post(
             "/api/generate-video",
             json={
+                "platform": "douyin",
                 "loan_amount": 1_000_000,
                 "annual_rate": 0.045,
                 "loan_years": 30,
@@ -98,12 +101,68 @@ class TestVideoGeneration:
         assert data["status"] == "queued"
         assert "created_at" in data
 
+    def test_generate_video_accepts_quality(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={
+                "platform": "douyin",
+                "quality": "preview",
+                "burn_subtitles": False,
+                "loan_amount": 1_000_000,
+                "annual_rate": 0.045,
+                "loan_years": 30,
+            },
+        )
+
+        assert response.status_code == 200
+
+    def test_generate_video_rejects_invalid_quality(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={
+                "platform": "douyin",
+                "quality": "ultra",
+                "loan_amount": 1_000_000,
+                "annual_rate": 0.045,
+                "loan_years": 30,
+            },
+        )
+
+        assert response.status_code == 422
+
+    def test_generate_video_requires_platform(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={
+                "loan_amount": 1_000_000,
+                "annual_rate": 0.045,
+                "loan_years": 30,
+            },
+        )
+
+        assert response.status_code == 422
+
+    def test_generate_video_rejects_invalid_duration_for_platform(self, client: TestClient):
+        response = client.post(
+            "/api/generate-video",
+            json={
+                "platform": "douyin",
+                "video_duration": 10,
+                "loan_amount": 1_000_000,
+                "annual_rate": 0.045,
+                "loan_years": 30,
+            },
+        )
+
+        assert response.status_code == 422
+
 
 class TestTaskStatus:
     def test_get_task_status(self, client: TestClient):
         response = client.post(
             "/api/generate-video",
             json={
+                "platform": "douyin",
                 "loan_amount": 1_000_000,
                 "annual_rate": 0.045,
                 "loan_years": 30,
@@ -131,6 +190,8 @@ class TestTaskResult:
         response = client.post(
             "/api/generate-video",
             json={
+                "platform": "douyin",
+                "quality": "preview",
                 "loan_amount": 1_000_000,
                 "annual_rate": 0.045,
                 "loan_years": 30,
@@ -145,6 +206,18 @@ class TestTaskResult:
 
         assert data["task_id"] == task_id
         assert data["status"] in ["queued", "processing", "completed", "failed"]
+        assert data["platform"] == "douyin"
+        assert data["quality"] == "preview"
+        assert "theme_name" in data
+        assert "visual_focus" in data
+        assert "subtitle_burned" in data
+        assert "bgm_applied" in data
+        assert "rendered_video_path" in data
+        assert "final_video_path" in data
+        assert "subtitle_path" in data
+        assert "styled_subtitle_path" in data
+        assert "subtitle_render_mode" in data
+        assert "cover_path" in data
 
     def test_get_nonexistent_task_result(self, client: TestClient):
         response = client.get("/api/task/nonexistent-task-id/result")

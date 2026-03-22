@@ -22,6 +22,7 @@ class ProjectDefinition:
     default_task: str
     manifest_path: Path
     tasks: dict[str, TaskDefinition]
+    capabilities: dict[str, Any]
 
 
 class ProjectRegistry:
@@ -90,6 +91,7 @@ class ProjectRegistry:
         description = str(raw.get("description", "")).strip()
         default_task = str(raw.get("default_task", "")).strip()
         raw_tasks = raw.get("tasks", {})
+        raw_capabilities = raw.get("capabilities", {})
 
         if not isinstance(raw_tasks, dict) or not raw_tasks:
             raise ValueError("manifest tasks must be a non-empty dict")
@@ -115,10 +117,16 @@ class ProjectRegistry:
         if default_task not in parsed_tasks:
             raise ValueError(f"default_task '{default_task}' not found in tasks")
 
+        if raw_capabilities is None:
+            raw_capabilities = {}
+        if not isinstance(raw_capabilities, dict):
+            raise ValueError("manifest capabilities must be a dict when provided")
+
         return ProjectDefinition(
             name=name,
             description=description,
             default_task=default_task,
             manifest_path=manifest_path,
             tasks=parsed_tasks,
+            capabilities=dict(raw_capabilities),
         )

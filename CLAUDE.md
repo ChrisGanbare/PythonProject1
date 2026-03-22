@@ -6,6 +6,19 @@
 
 ---
 
+## 战略锚点（实现与方案选择时不得偏离）
+
+以下由仓库文档定义，**无需用户每次重复决策**；若需求与之一致则优先落地，若冲突则向用户说明冲突点再改。
+
+- **用户使用入口**：[`README.md`](README.md)（安装、调度、API、控制台、脚手架）；勿再引用已删除的 handoff 类文档。
+- **单一事实来源**：[`docs/PRODUCT_STRATEGY.md`](docs/PRODUCT_STRATEGY.md)（与通用「视频大模型」的差异、护城河、设计原则）
+- **工程分阶段与目录**：[`docs/DATA_VIZ_VIDEO_ARCHITECTURE.md`](docs/DATA_VIZ_VIDEO_ARCHITECTURE.md)
+- **不动摇的主轴**：真值层（数据/代码为数字来源）、可复现（manifest/版本/指纹）、平台原生规格、系列化产能；**不以「纯 prompt 出片」替代确定性图表与可审计叙事**。
+- **遇阻塞时的质量参照**：`PRODUCT_STRATEGY` 中的「对标头部数据可视化作品」——学信息架构与节奏，不抄版权。
+- **默认技术倾向**：Python 可视化栈与可插拔后端（如 matplotlib 主路径），AI/剧本/素材为增效层。
+
+---
+
 # 核心能力矩阵
 
 ## 1. 数据处理与分析
@@ -97,8 +110,8 @@ video_project/
 │   ├── sounds/                   # 背景音乐
 │   └── templates/                # 片头片尾模板帧
 │
-├── projects/                     # 作品目录（每个作品一个子目录）
-│   └── loan_comparison/          # 贷款对比可视化
+├── projects/                     # 作品目录（每个作品一个子目录；仓库内示例与新建项目同一套 manifest/调度约定）
+│   └── loan_comparison/          # 示例：贷款对比可视化
 │       ├── models/               # loan.py / schemas.py / validators.py
 │       ├── renderer/             # animation.py（调度器） + impl.py（matplotlib渲染）
 │       ├── api/main.py           # FastAPI 服务

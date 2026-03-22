@@ -34,6 +34,8 @@ def run_api(host: str = "0.0.0.0", port: int = 8001) -> None:
 
 def run_fund_animation(
     output_file: str | None = None,
+    platform: str | None = None,
+    quality: str | None = None,
     width: int | None = None,
     height: int | None = None,
     duration: int | None = None,
@@ -41,10 +43,24 @@ def run_fund_animation(
     principal: float | None = None,
     gross_return: float | None = None,
     years: int | None = None,
-) -> None:
-    """Generate the fund fee erosion animation video."""
-    generate_fund_animation(
+    screenplay: dict | None = None,
+) -> dict[str, str | None]:
+    """Generate the fund fee erosion animation video.
+
+    ``screenplay`` 可选：与贷款项目一致的 ``Screenplay`` JSON，用于后续绑定节拍/叙事；当前版本会先校验结构再成片。
+    """
+    screenplay_title = None
+    if screenplay is not None:
+        from shared.content.screenplay import Screenplay
+
+        sp = Screenplay.model_validate(screenplay)
+        screenplay_title = sp.title
+        print(f"[fund_fee_erosion] 已接收剧本 JSON: {sp.title!r}（{len(sp.scenes)} scenes），成片管线将随版本深化消费。")
+
+    out = generate_fund_animation(
         output_file=output_file,
+        platform=platform,
+        quality=quality,
         width=width,
         height=height,
         duration=duration,
@@ -53,3 +69,7 @@ def run_fund_animation(
         gross_return=gross_return,
         years=years,
     )
+    return {
+        "final_video_path": str(out),
+        "screenplay_title": screenplay_title,
+    }

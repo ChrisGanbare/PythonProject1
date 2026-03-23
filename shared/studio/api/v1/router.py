@@ -30,6 +30,10 @@ class IntentSessionCreate(BaseModel):
     meta: dict[str, Any] | None = None
 
 
+class IntentSessionUpdate(BaseModel):
+    title: str | None = None
+
+
 class JobFromTemplateRequest(BaseModel):
     """使用标准模板提交异步渲染。"""
 
@@ -113,6 +117,37 @@ def create_v1_router(get_registry: Callable[[], ProjectRegistry]) -> APIRouter:
         if detail is None:
             raise HTTPException(status_code=404, detail="Session not found")
         return detail
+
+    @router.patch("/sessions/{session_id}")
+    def api_update_session(session_id: str, body: IntentSessionUpdate) -> dict[str, Any]:
+        success = intent_svc.update_intent_session_title(session_id, body.title)
+        if not success:
+            raise HTTPException(status_code=404, detail="Session not found")
+        detail = intent_svc.get_intent_session_detail(session_id)
+        return detail or {}
+
+    @router.delete("/sessions/{session_id}")
+    def api_delete_session(session_id: str) -> dict[str, str]:
+        success = intent_svc.delete_intent_session(session_id)
+        if not success:
+            # Check if session exists but is in-progress
+            detail = intent_svc.get_intent_session_detail(session_id)
+            if detail is not None and not detail.get("is_completed"):
+                raise HTTPException(
+                    status_code=409,  # Conflict
+                    detail="Can only delete completed sessions; this session is still in progress"
+                )
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"message": "Session deleted"}
+
+    @router.post("/sessions/{session_id}/complete")
+    def api_complete_session(session_id: str) -> dict[str, Any]:
+        """标记会话为已完成。"""
+        success = intent_svc.mark_intent_session_completed(session_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Session not found")
+        detail = intent_svc.get_intent_session_detail(session_id)
+        return detail or {}
 
     # --- Agent (canonical under v1) ---
     @router.get("/agent/catalog")

@@ -7,8 +7,12 @@
 | 文档 | 用途 |
 |------|------|
 | **本 README** | **唯一用户入口**：安装、调度器、子项目任务与 HTTP API、Web 控制台、脚手架、配置与测试 |
-| [`docs/PRODUCT_STRATEGY.md`](docs/PRODUCT_STRATEGY.md) | 战略目标、护城河、与通用「视频大模型」的差异（**方案与优先级以战略为准**） |
+| [`docs/PRODUCT_STRATEGY.md`](docs/PRODUCT_STRATEGY.md) | 产品战略：与通用「视频大模型」的差异、护城河、设计原则（**方案与优先级以本文为准**） |
 | [`docs/DATA_VIZ_VIDEO_ARCHITECTURE.md`](docs/DATA_VIZ_VIDEO_ARCHITECTURE.md) | 工程分层、数据可视化管线、分阶段落地与扩展点 |
+| [`docs/AGENT.md`](docs/AGENT.md) | Agent 集成：自然语言 → 标准模板 → 渲染的 HTTP API 与 CLI 说明 |
+| [`docs/STUDIO_ARCHITECTURE.md`](docs/STUDIO_ARCHITECTURE.md) | 控制面数据库（SQLite/PostgreSQL）、作业持久化与 API 版本策略 |
+| [`docs/CORE_VIDEO_PIPELINE.md`](docs/CORE_VIDEO_PIPELINE.md) | 从剧本到成片全流程白话说明（非技术角色推荐） |
+| [`docs/UAT_BROWSER_AND_AGENT.md`](docs/UAT_BROWSER_AND_AGENT.md) | 真实 Agent 编译接口与浏览器 UAT 命令速查 |
 | [`CLAUDE.md`](CLAUDE.md) | 面向 AI/IDE 助手的工作区约定（非必读） |
 
 ## 架构概览
@@ -50,41 +54,50 @@ video_project/
 ├─ .env.example                   # 环境变量模板（复制为 .env 后生效）
 ├─ .gitignore
 │
-├─ shared/                        # 公共库
+├─ shared/                        # 公共库（所有子项目可导入）
 │  ├─ config/settings.py          # 全局配置（VideoConfig / APIConfig / LogConfig）
-│  ├─ platform/presets.py         # 平台规格常量（B站/抖音/小红书）
-│  ├─ core/
-│  │  ├─ exceptions.py            # 公共异常类
-│  │  └─ task_manager.py          # 任务生命周期管理 + TaskStatus
-│  ├─ media/video_editor.py       # FFmpeg 封装（stub）
-│  ├─ visualization/              # 预留：bar_chart_race 等
-│  └─ utils/
-│     ├─ decorators.py            # retry / log_execution
-│     ├─ logger.py                # setup_logger
-│     └─ validators.py            # 通用范围检查
+│  ├─ platform/                   # 平台规格（B站横/竖屏·抖音·小红书）与视频请求结构
+│  ├─ core/                       # 公共异常层级 + 任务生命周期管理
+│  ├─ agent/                      # 自然语言编译、Catalog 构建、StandardVideoJobRequest
+│  ├─ code_studio/                # 代码补丁编译（LLM → patch）与会话持久化
+│  ├─ content/                    # 剧本·内容规划·字幕·主题·排版·安全区令牌
+│  ├─ studio/                     # 渲染作业数据库（SQLite/PostgreSQL）与意图会话服务层
+│  ├─ media/video_editor.py       # FFmpeg 封装：成片合成、SRT/ASS 字幕烧录、封面生成
+│  ├─ visualization/              # 可视化后端协议、PNG 帧缓存（断点续帧）、后端注册表
+│  ├─ library/                    # 资产注册表（字体 / 音乐 / 模板）
+│  └─ utils/                      # decorators（retry）/ logger / validators
 │
 ├─ assets/                        # 共享静态资源（字体、音乐、模板）
 │
 ├─ projects/
-│  ├─ loan_comparison/            # 参考实现：贷款对比可视化
+│  ├─ loan_comparison/            # 参考实现：贷款对比可视化（matplotlib）
 │  │  ├─ project_manifest.py
 │  │  ├─ entrypoints.py
 │  │  ├─ models/                  # loan.py · schemas.py · validators.py
-│  │  ├─ renderer/                # animation.py（调度）· impl.py（渲染）
+│  │  ├─ renderer/                # animation.py · impl.py · viz_bridge.py · viz_presets.py
 │  │  ├─ api/main.py              # FastAPI 服务（默认端口 8000）
 │  │  └─ tests/
 │  │
-│  └─ fund_fee_erosion/           # 参考实现：基金手续费复利侵蚀可视化
+│  ├─ fund_fee_erosion/           # 参考实现：基金手续费复利侵蚀可视化（matplotlib）
+│  │  ├─ project_manifest.py
+│  │  ├─ entrypoints.py
+│  │  ├─ models/                  # calculator.py · schemas.py
+│  │  ├─ renderer/                # animation.py · impl.py
+│  │  ├─ api/main.py              # FastAPI 服务（默认端口 8001）
+│  │  └─ tests/
+│  │
+│  └─ video_platform_introduction/ # 参考实现：平台介绍展示视频（Manim + screenplay_workflow）
 │     ├─ project_manifest.py
 │     ├─ entrypoints.py
-│     ├─ models/                  # calculator.py · schemas.py
-│     ├─ renderer/                # animation.py（调度）· impl.py（渲染）
-│     ├─ api/main.py              # FastAPI 服务（默认端口 8001）
+│     ├─ renderer/                # Manim 渲染实现
 │     └─ tests/
 │
 ├─ orchestrator/                  # 项目发现与任务执行核心
-│  ├─ registry.py                 # 扫描 projects/ 目录
-│  └─ runner.py                   # 任务执行器
+│  ├─ registry.py                 # 扫描 projects/*/project_manifest.py 自动发现
+│  ├─ runner.py                   # 任务执行器（同步/异步自适应，参数类型强制）
+│  ├─ inspector.py                # 任务函数参数反射（驱动控制台动态表单）
+│  ├─ scaffold.py                 # 交互式脚手架：生成新项目骨架
+│  └─ agent_cli.py                # 自然语言 → 标准任务 CLI 链路（`video-agent` 命令）
 │
 ├─ tests/                         # 根级测试（`pytest` 收集）
 └─ runtime/                       # 运行时输出，gitignore
@@ -219,6 +232,8 @@ python scheduler.py run --project fund_fee_erosion --task smoke_check
 | `POST` | `/api/agent/compile` | **Agent**：自然语言（及可选 `previous` 模板）→ 标准任务 JSON；需配置 OpenAI 兼容 API |
 | `POST` | `/api/agent/validate` | **Agent**：校验标准模板是否可被当前注册表执行 |
 | `POST` | `/api/agent/run` | **Agent**：用标准模板异步触发任务，语义同 `POST /api/run/...`，返回 `job_id` |
+| `GET` | `/api/viz/backends` | 列出当前注册的可视化渲染后端及其能力（matplotlib / manim 等） |
+| `GET` | `/api/viz/self-correction/categories` | 列出 Self-Correction 反馈环支持的错误分类与是否支持自动修复 |
 
 自然语言与 Claude Code 等对接说明见 **[docs/AGENT.md](docs/AGENT.md)**；控制面（数据库、作业持久化、API 版本）见 **[docs/STUDIO_ARCHITECTURE.md](docs/STUDIO_ARCHITECTURE.md)**。规范 REST 前缀为 **`/api/v1`**（兼容旧路径 `/api/jobs`、`/api/agent`）。命令行：`video-agent`（安装 `pip install -e .` 后可用）。
 
@@ -265,6 +280,9 @@ def my_new_task(
 ```bash
 # 列出所有已发现子项目及任务
 python scheduler.py list
+
+# 列出所有注册的可视化渲染后端
+python scheduler.py backends
 
 # ── loan_comparison ──────────────────────────────────────────
 python scheduler.py run --project loan_comparison --task smoke_check
@@ -316,6 +334,15 @@ python scheduler.py run --project fund_fee_erosion --task fund_animation \
 `fund_animation` 支持参数：`platform`、`quality`、`output_file`、`width`、`height`、`duration`、`fps`、`principal`、`gross_return`、`years`
 
 当提供 `platform` 时，`width` / `height` / `fps` 必须与平台预设一致；推荐直接只传 `platform` 与业务参数。
+
+### video_platform_introduction — 平台介绍展示视频
+
+| 任务 | 说明 |
+|------|------|
+| `smoke_check` | 环境自检，验证 Manim 依赖与剧本加载，无需 ffmpeg |
+| `generate_intro_video` | 使用 Manim 渲染平台介绍动画 MP4（需要 Manim + ffmpeg） |
+
+本项目使用 **Manim** 渲染引擎（非 matplotlib），演示 `screenplay_workflow` 剧本驱动能力。manifest 中声明 `capabilities.viz_backends: ["manim"]`，控制台会据此显示剧本交付入口。
 
 ## API 服务
 
@@ -489,6 +516,44 @@ python scheduler.py run --project fund_fee_erosion --task fund_animation \
 - `loan_comparison` / `fund_fee_erosion`：任务结果中现已返回 `styled_subtitle_path` 与 `subtitle_render_mode`，可观察本次是否走了样式化字幕主路径。
 - 当前策略是“先完成共享样式化字幕引擎 + 两项目接入”；逐字高亮、卡拉 OK 特效等更复杂字幕特效不在本轮范围内。
 
+## 可视化渲染后端
+
+系统采用可插拔后端架构（`shared/visualization/`），当前支持：
+
+| 后端 | 模块 | 适用场景 |
+|------|------|----------|
+| **matplotlib**（默认） | `shared/visualization/backends/matplotlib_backend.py` | 折线图、柱状图、散点图、Bar Chart Race 等统计图表类 |
+| **manim** | `shared/visualization/backends/manim_backend.py` | 数学动画、公式推导、几何变换、算法可视化 |
+
+后端在启动时自动注册；Manim 后端在 `manim` 包不可用时静默跳过。各子项目可在 `project_manifest.py` 的 `capabilities.viz_backends` 中声明使用的后端，控制台侧栏会显示对应标签。
+
+```bash
+# CLI 查看所有后端
+python scheduler.py backends
+
+# API 查看
+curl http://127.0.0.1:8090/api/viz/backends
+```
+
+## Self-Correction 自动修复
+
+渲染任务执行时自动启用 Self-Correction 反馈环（`shared/core/self_correction.py`）。当任务因以下可自愈原因失败时，系统最多自动重试 2 次：
+
+| 错误分类 | 自动修复策略 |
+|----------|------------|
+| `font_not_found` | 回退到 Noto Sans SC |
+| `ffmpeg_error` | 添加 `-pix_fmt yuv420p` |
+| `out_of_memory` | 降级到 preview 质量 |
+| `timeout` | 延长超时时间 |
+| `matplotlib_error` | 降低 DPI |
+
+不可自动修复的类别（`missing_dependency`、`file_not_found`、`invalid_parameter`、`unknown`）会直接报告诊断结果供用户处理。
+
+**用户可感知方式**：
+- **Web 控制台**：失败时显示「Self-Correction 诊断」（错误分类 + 建议 + 重试次数）；成功但经过重试时显示修复记录
+- **CLI 日志**：任务执行中打印每次诊断与修复动作
+- **API**：`GET /api/jobs/{job_id}` 的 `result` 字段含 `self_correction` 对象；`GET /api/viz/self-correction/categories` 列出全部分类
+
 ## 新增子项目
 
 可以直接用脚手架命令生成最小项目骨架：
@@ -540,3 +605,10 @@ python -m pytest projects/loan_comparison/tests/ -q
 python -m pytest projects/fund_fee_erosion/tests/ -q
 python -m pytest tests/ -q
 ```
+
+**注意事项：**
+
+- `tests/test_api.py`、`tests/test_main.py`、`tests/test_video_pipeline.py` 依赖 `opencv-python`（`cv2`）。若未安装 cv2，这 3 个文件会在收集阶段报错但**不影响其余测试**。如需全量执行，先运行 `pip install opencv-python`。
+- E2E 测试（`tests/e2e/`）需要控制台服务**在本地运行**（`python dashboard.py`），否则会失败或跳过。
+- 浏览器 UAT（`tests/e2e_browser/`）需额外安装 Playwright：`pip install -e ".[uat]" && python -m playwright install chromium`，详见 [`docs/UAT_BROWSER_AND_AGENT.md`](docs/UAT_BROWSER_AND_AGENT.md)。
+- 真实 Agent 编译测试（`tests/uat/`）需要本机 `.env` 中已配置 OpenAI 兼容密钥，且须设置环境变量 `UAT_AGENT_COMPILE=1`。

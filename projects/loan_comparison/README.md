@@ -1,6 +1,8 @@
-# loan_comparison screenplay API
+# loan_comparison — Screenplay API
 
-本项目已接入第一阶段的 **编剧（Screenplay）→ 导演（Director）→ 渲染（Renderer）** 架构。
+> **安装、调度与控制台入口**：见仓库根目录 [README.md](../../README.md)。本文档仅说明本项目 screenplay 专属 API。
+
+本项目已接入 **编剧（Screenplay）→ 导演（Director）→ 渲染（Renderer）** 架构。
 
 ## 当前已支持
 
@@ -66,6 +68,6 @@
 ## 快速验证
 
 ```powershell
-python -m pytest "D:\pythonProject\video_project\projects\loan_comparison\tests\test_api.py" -q
+python -m pytest projects/loan_comparison/tests/ -q
 ```
 

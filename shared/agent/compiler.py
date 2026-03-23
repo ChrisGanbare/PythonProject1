@@ -138,9 +138,20 @@ def compile_natural_language(
             raw_model_text=raw_text,
         )
 
+    # 获取任务的参数定义
+    from shared.agent.catalog import _load_manifest_dict
+    project = registry.get_project(req.project)
+    task_parameters = None
+    if project is not None:
+        raw = _load_manifest_dict(project.manifest_path)
+        tasks = raw.get("tasks", {})
+        task_def = tasks.get(req.task, {})
+        task_parameters = task_def.get("parameters")
+
     return AgentCompileResponse(
         success=True,
         standard_request=req,
         warnings=warnings,
         raw_model_text=raw_text,
+        task_parameters=task_parameters,
     )

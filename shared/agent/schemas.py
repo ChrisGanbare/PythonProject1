@@ -59,6 +59,10 @@ class AgentCompileResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     raw_model_text: str | None = Field(default=None, description="模型原始 JSON 文本，仅调试")
+    task_parameters: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Task 的参数定义（从 manifest 中提取），便于前端显示"
+    )
 
 
 class AgentValidateResponse(BaseModel):

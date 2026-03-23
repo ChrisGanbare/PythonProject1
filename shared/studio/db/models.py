@@ -22,6 +22,7 @@ class IntentSession(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    is_completed: Mapped[bool] = mapped_column(nullable=False, default=False)  # 会话是否已完成编译
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
     meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # 客户端标签、来源等

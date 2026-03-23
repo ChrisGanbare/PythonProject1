@@ -26,6 +26,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("list", help="List discovered subprojects and tasks")
 
+    subparsers.add_parser("backends", help="List registered visualization backends and capabilities")
+
     run_parser = subparsers.add_parser("run", help="Run one task from one subproject")
     run_parser.add_argument("--project", required=True, help="Project name, e.g. PythonProject1")
     run_parser.add_argument("--task", help="Task name. Defaults to project's default_task")
@@ -61,6 +63,9 @@ def print_projects(registry: ProjectRegistry) -> None:
     for project in projects:
         print(f"- {project.name}: {project.description}")
         print(f"  default task: {project.default_task}")
+        backends = project.capabilities.get("viz_backends", [])
+        if backends:
+            print(f"  viz backends: {', '.join(backends)}")
         for task_name, task in sorted(project.tasks.items()):
             desc = f" - {task.description}" if task.description else ""
             print(f"  * {task_name}: {task.callable_path}{desc}")
@@ -69,6 +74,34 @@ def print_projects(registry: ProjectRegistry) -> None:
         print("\nManifest load warnings:")
         for error in registry.load_errors:
             print(f"- {error}")
+
+
+def print_backends() -> None:
+    from shared.visualization.registry import list_backends
+
+    backends = list_backends()
+    if not backends:
+        print("No visualization backends registered.")
+        return
+
+    print("Registered visualization backends:")
+    for b in backends:
+        name = b["name"]
+        caps = b.get("capabilities", {})
+        recommended = caps.get("recommended_for", [])
+        print(f"\n  [{name}]")
+        for key, val in caps.items():
+            if key == "recommended_for":
+                continue
+            print(f"    {key}: {val}")
+        if recommended:
+            print(f"    recommended for: {', '.join(recommended)}")
+
+    print("\nSelf-Correction feedback loop: enabled")
+    from shared.core.self_correction import ErrorCategory
+
+    auto = [c.value for c in ErrorCategory if c.value not in ("missing_dependency", "file_not_found", "invalid_parameter", "unknown", "manim_scene_error")]
+    print(f"  auto-correctable categories: {', '.join(auto)}")
 
 
 def run_single(registry: ProjectRegistry, project_name: str, task_name: str | None, raw_params: list[str]) -> int:
@@ -121,6 +154,9 @@ def main() -> int:
 
     if command == "list":
         print_projects(registry)
+        return 0
+    if command == "backends":
+        print_backends()
         return 0
     if command == "run":
         return run_single(registry, args.project, args.task, args.param)

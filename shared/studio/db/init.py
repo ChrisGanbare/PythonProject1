@@ -21,6 +21,15 @@ def _run_migrations(engine) -> None:
                     "ALTER TABLE code_sessions ADD COLUMN task_name VARCHAR(256)"
                 ))
                 conn.commit()
+        
+        # intent_sessions.is_completed（2026会话状态新增）
+        if "intent_sessions" in inspector.get_table_names():
+            cols = {c["name"] for c in inspector.get_columns("intent_sessions")}
+            if "is_completed" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE intent_sessions ADD COLUMN is_completed BOOLEAN NOT NULL DEFAULT 0"
+                ))
+                conn.commit()
 
 
 def init_db() -> None:

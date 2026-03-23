@@ -185,7 +185,10 @@ const { createApp, computed } = Vue;
             studioSessionsError: null,
             /** 会话列表 404 等：中性说明，避免默认红字「404」惊吓 */
             studioSessionsSoftNotice: null,
-            newStudioSessionTitle: '',
+            /** 编辑会话标题的临时状态 */
+            editingSessionId: null,
+            editingSessionTitle: '',
+            deleteConfirmSessionId: null,
 
             // ── AI Agent Panel State ──
             agentPrompt: '',
@@ -193,6 +196,7 @@ const { createApp, computed } = Vue;
             agentCompileError: null,
             agentCompiledResult: null,   // StandardVideoJobRequest 编译结果
             agentEditedKwargs: {},       // 用户可编辑的 kwargs 副本
+            agentLinkedSessionId: null,  // 当前编译关联的会话 ID
             agentRunning: false,
             agentJobId: null,
             agentJobSuccess: false,
@@ -218,6 +222,9 @@ const { createApp, computed } = Vue;
             csApplying: false,
             csApplyError: null,
             csApplySuccess: null,
+
+            // ── Viz Backends State ──
+            vizBackends: [],
           }
         },
         computed: {
@@ -295,6 +302,11 @@ const { createApp, computed } = Vue;
             if (!this.currentJobResult || typeof this.currentJobResult !== 'object') return [];
             return this.extractArtifactsFromResult(this.currentJobResult);
           },
+          /** Self-correction report from a successful job (retries happened) */
+          jobSelfCorrection() {
+            if (!this.currentJobResult || typeof this.currentJobResult !== 'object') return null;
+            return this.currentJobResult.self_correction || null;
+          },
           canConfirmDelete() {
             return !!(
               this.deleteAckDanger &&
@@ -368,10 +380,15 @@ const { createApp, computed } = Vue;
             const s = this.settings;
             return !!(s && s.openai_base_url && s.openai_api_key && s.openai_model);
           },
+          /** 是否已有进行中（未完成）的意图会话，有则禁止再新建 */
+          hasActiveStudioSession() {
+            return this.studioSessions.some(s => s.is_completed === false);
+          },
         },
         mounted() {
           this.fetchProjects();
           this.fetchSettings();
+          this.fetchVizBackends();
           // 仅在「意图会话」分区加载列表，避免默认停在「项目与任务」时仍请求 /api/v1/sessions 并显示 Not Found
           if (this.sidebarPrimaryTab === 'agent') {
             this.fetchStudioSessions();
@@ -457,7 +474,9 @@ const { createApp, computed } = Vue;
           studioSessionLabel(s) {
             if (!s || !s.id) return '';
             if (s.title && String(s.title).trim()) return String(s.title).trim();
-            // 显示序号（列表倒序后的第 N 个），序号不可用时展示最后 6 位小写 id
+            // 未完成的会话显示"当前会话"
+            if (!s.is_completed) return '当前会话';
+            // 已完成未命名会话：显示序号或id
             const idx = this.studioSessions.findIndex(x => x.id === s.id);
             if (idx !== -1) return `会话 ${this.studioSessions.length - idx}`;
             return s.id.slice(-6);
@@ -510,15 +529,18 @@ const { createApp, computed } = Vue;
           },
           async createStudioSession() {
             this.studioSessionsError = null;
+            if (this.hasActiveStudioSession) {
+              this.studioSessionsError = '已有一个进行中的会话，请等待当前会话完成后再创建新会话。';
+              return;
+            }
             try {
               const res = await fetch('/api/v1/sessions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: this.newStudioSessionTitle.trim() || null })
+                body: JSON.stringify({ title: null, meta: {} })
               });
               const data = await res.json();
               if (!res.ok) throw new Error(this._apiErrorMessage(data, res.statusText));
-              this.newStudioSessionTitle = '';
               await this.fetchStudioSessions();
               if (data.session_id) {
                 await this.selectStudioSession(data.session_id);
@@ -534,8 +556,14 @@ const { createApp, computed } = Vue;
             this.studioSessionDetailLoading = true;
             this.studioSessionDetail = null;
             this.studioSessionsError = null;
+            await this.refreshStudioSessionDetail();
+          },
+          async refreshStudioSessionDetail() {
+            if (!this.selectedStudioSessionId) return;
+            this.studioSessionDetailLoading = true;
+            this.studioSessionsError = null;
             try {
-              const res = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}`);
+              const res = await fetch(`/api/v1/sessions/${encodeURIComponent(this.selectedStudioSessionId)}`);
               const data = await res.json();
               if (!res.ok) throw new Error(this._apiErrorMessage(data, res.statusText));
               this.studioSessionDetail = data;
@@ -546,9 +574,93 @@ const { createApp, computed } = Vue;
               this.studioSessionDetailLoading = false;
             }
           },
+          openEditSessionTitle(sessionId, currentTitle) {
+            this.editingSessionId = sessionId;
+            this.editingSessionTitle = currentTitle || '';
+            // TODO: 显示编辑模态框或内联编辑
+            this.showEditSessionTitleDialog(sessionId, currentTitle);
+          },
+          showEditSessionTitleDialog(sessionId, currentTitle) {
+            // 简单实现：使用 prompt
+            const newTitle = prompt('输入新的会话标题（留空使用自动生成的标题）:', currentTitle || '');
+            if (newTitle !== null) {
+              this.updateSessionTitle(sessionId, newTitle.trim() || null);
+            }
+          },
+          async updateSessionTitle(sessionId, newTitle) {
+            try {
+              const res = await fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: newTitle })
+              });
+              if (!res.ok) {
+                const data = await res.json();
+                throw new Error(this._apiErrorMessage(data, res.statusText));
+              }
+              await this.fetchStudioSessions();
+              this.addLog(`已更新会话标题`);
+              this.editingSessionId = null;
+              this.editingSessionTitle = '';
+            } catch (err) {
+              this.studioSessionsError = err.message || String(err);
+            }
+          },
+          confirmDeleteSession(sessionId) {
+            const session = this.studioSessions.find(s => s.id === sessionId);
+            // 防止删除进行中的会话
+            if (session && !session.is_completed) {
+              this.studioSessionsError = '进行中的会话无法删除，请等待编译完成后再尝试。';
+              return;
+            }
+            const title = this.studioSessionLabel(session);
+            if (confirm(`确定删除会话"${title}"吗？此操作不可撤销。`)) {
+              this.deleteSession(sessionId);
+            }
+          },
+          async deleteSession(sessionId) {
+            try {
+              const res = await fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
+                method: 'DELETE'
+              });
+              if (!res.ok) {
+                const data = await res.json();
+                throw new Error(this._apiErrorMessage(data, res.statusText));
+              }
+              if (this.selectedStudioSessionId === sessionId) {
+                this.clearStudioSessionSelection();
+              }
+              await this.fetchStudioSessions();
+              this.addLog(`已删除会话`);
+            } catch (err) {
+              this.studioSessionsError = err.message || String(err);
+            }
+          },
           clearStudioSessionSelection() {
             this.selectedStudioSessionId = null;
             this.studioSessionDetail = null;
+            this.deleteConfirmSessionId = null;
+          },
+          /** 批量清理所有未完成（残余）会话：先 complete 再 delete */
+          async cleanupStaleSessions() {
+            const stale = this.studioSessions.filter(s => s.is_completed === false);
+            if (stale.length === 0) return;
+            this.studioSessionsError = null;
+            let cleaned = 0;
+            for (const s of stale) {
+              try {
+                // 1. 标记已完成
+                await fetch(`/api/v1/sessions/${encodeURIComponent(s.id)}/complete`, { method: 'POST' });
+                // 2. 删除
+                await fetch(`/api/v1/sessions/${encodeURIComponent(s.id)}`, { method: 'DELETE' });
+                if (this.selectedStudioSessionId === s.id) this.clearStudioSessionSelection();
+                cleaned++;
+              } catch (e) {
+                // 单条失败不中断
+              }
+            }
+            await this.fetchStudioSessions();
+            this.addLog(`已清理 ${cleaned} 个残余空会话`);
           },
           copyStudioTemplate(obj) {
             const text = this.prettyJson(obj);
@@ -950,6 +1062,17 @@ const { createApp, computed } = Vue;
               this.loadingProjects = false;
             }
           },
+          async fetchVizBackends() {
+            try {
+              const res = await fetch('/api/viz/backends');
+              if (res.ok) {
+                const data = await res.json();
+                this.vizBackends = data.backends || [];
+              }
+            } catch (e) {
+              // Non-critical — silently ignore
+            }
+          },
           toggleProject(projName) {
             this.currentProject = this.currentProject === projName ? null : projName;
           },
@@ -1101,6 +1224,11 @@ const { createApp, computed } = Vue;
                                 this.addLog(`返回结果: ${job.result}`);
                             }
                         }
+                        // Log self-correction summary if retries happened
+                        if (job.result && job.result.self_correction) {
+                          const sc = job.result.self_correction;
+                          this.addLog(`🔄 自动修复: 经过 ${sc.total_attempts || 0} 次重试后成功`);
+                        }
                         this.taskSuccess = true;
                         this.addLog('✅ 请在下方「任务结果验收」核对产出路径；有节拍表时可继续查看 Scene Schedule。');
                         this.running = false;
@@ -1111,11 +1239,18 @@ const { createApp, computed } = Vue;
                         if (job.log && job.log.length > 0) {
                            job.log.slice(-3).forEach(l => this.addLog(`[JobLog] ${l}`));
                         }
+                        // Extract self-correction info from job result (lifecycle stores it on failure)
+                        const scInfo = (job.result && job.result.self_correction) || null;
                         this.lastFailure = {
                           error: errMsg,
                           jobLog: job.log || [],
                           jobId: jobId,
+                          selfCorrection: scInfo,
                         };
+                        if (scInfo) {
+                          this.addLog(`🔍 错误分类: ${scInfo.error_category || '未知'}${scInfo.auto_correctable ? '（已尝试自动修复）' : ''}`);
+                          if (scInfo.suggested_fix) this.addLog(`💡 建议: ${scInfo.suggested_fix}`);
+                        }
                         this.taskSuccess = false;
                         this.currentJobResult = null;
                         this.addLog('❌ 请在下方「任务结果验收」查看详情，可「使用当前参数重试」。');
@@ -1377,6 +1512,7 @@ const { createApp, computed } = Vue;
             const tpl = this.lastCompiledTemplate();
             if (!tpl) return;
             this.agentCompiledResult = tpl;
+            // 对于已保存的模板，直接使用其中的 kwargs（没有task_parameters）
             this.agentEditedKwargs = { ...(tpl.kwargs || {}) };
             this.agentCompileError = null;
             this.agentLogs = ['📋 已载入上次编译结果，可直接运行或修改提示后重新编译'];
@@ -1411,10 +1547,32 @@ const { createApp, computed } = Vue;
                 throw new Error((data.errors || []).join('；') || '编译失败（未知原因）');
               }
               this.agentCompiledResult = data.standard_request;
-              this.agentEditedKwargs = { ...(data.standard_request.kwargs || {}) };
+              
+              // 合并 task_parameters 与 kwargs：确保所有参数都显示，包括默认值
+              this.agentEditedKwargs = {};
+              if (data.task_parameters && Array.isArray(data.task_parameters)) {
+                // 先从参数定义加载默认值
+                data.task_parameters.forEach(param => {
+                  if (param.name && 'default' in param) {
+                    this.agentEditedKwargs[param.name] = param.default;
+                  }
+                });
+                // 再用编译的kwargs覆盖（这样保留AI生成的值）
+                if (data.standard_request.kwargs) {
+                  Object.assign(this.agentEditedKwargs, data.standard_request.kwargs);
+                }
+              } else {
+                // 如果没有task_parameters，就直接用编译的kwargs
+                this.agentEditedKwargs = { ...(data.standard_request.kwargs || {}) };
+              }
+              
               this.agentLogs.push(`✅ 编译成功 → 项目：${data.standard_request.project}，任务：${data.standard_request.task}`);
               if (data.standard_request.intent_summary) {
                 this.agentLogs.push(`💡 AI 理解：${data.standard_request.intent_summary}`);
+              }
+              // 显示参数信息
+              if (data.task_parameters && Array.isArray(data.task_parameters) && data.task_parameters.length > 0) {
+                this.agentLogs.push(`📋 任务参数：${data.task_parameters.map(p => p.name).join(', ')}`);
               }
               (data.warnings || []).forEach(w => this.agentLogs.push(`⚠️ ${w}`));
               // 编译成功后刷新侧栏会话详情
@@ -1435,14 +1593,39 @@ const { createApp, computed } = Vue;
               this.agentLogs.push('⚠️ 项目与任务面板正在渲染同一项目，请等待完成后再试');
               return;
             }
+            
+            // 如果未选中会话：优先复用现有活跃会话，无活跃会话才新建
+            if (!this.selectedStudioSessionId) {
+              const activeSession = this.studioSessions.find(s => s.is_completed === false);
+              if (activeSession) {
+                await this.selectStudioSession(activeSession.id);
+                this.agentLogs.push(`🗂 已自动关联现有活跃会话 ${activeSession.id.slice(0, 8)}…`);
+              } else {
+                try {
+                  await this.createStudioSession();
+                } catch (e) {
+                  this.agentLogs.push(`⚠️ 创建会话失败，继续不关联会话运行`);
+                }
+              }
+            }
+            
             this.agentRunning = true;
             this.agentJobSuccess = false;
             this.agentJobFailure = null;
             this.agentJobResult = null;
             this.agentJobId = null;
-            const payload = { ...this.agentCompiledResult, kwargs: { ...this.agentEditedKwargs } };
+            this.agentLinkedSessionId = this.selectedStudioSessionId;
+            
+            // session_id 通过 query 参数传递，不放进 StandardVideoJobRequest 请求体（extra=forbid）
+            const payload = { 
+              ...this.agentCompiledResult, 
+              kwargs: { ...this.agentEditedKwargs },
+            };
+            const runUrl = this.agentLinkedSessionId
+              ? `/api/agent/run?session_id=${encodeURIComponent(this.agentLinkedSessionId)}`
+              : '/api/agent/run';
             try {
-              const res = await fetch('/api/agent/run', {
+              const res = await fetch(runUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -1471,6 +1654,24 @@ const { createApp, computed } = Vue;
                 if (job.status === 'success') {
                   this.agentJobSuccess = true;
                   this.agentJobResult = job.result || {};
+                  
+                  // 渲染完成后，自动生成会话标题并标记为已完成
+                  if (this.agentLinkedSessionId) {
+                    const autoTitle = this.generateSessionTitleFromPrompt(this.agentPrompt);
+                    if (autoTitle) {
+                      await this.updateSessionTitle(this.agentLinkedSessionId, autoTitle);
+                    }
+                    // 标记会话为已完成并刷新列表
+                    try {
+                      await fetch(`/api/v1/sessions/${encodeURIComponent(this.agentLinkedSessionId)}/complete`, {
+                        method: 'POST'
+                      });
+                      await this.fetchStudioSessions();  // 刷新列表以更新 is_completed 状态
+                    } catch (e) {
+                      console.error('Failed to mark session as completed:', e);
+                    }
+                  }
+                  
                   if (job.result && job.result.final_video_path) {
                     this.agentLogs.push(`🎥 视频输出：${job.result.final_video_path}`);
                   } else if (job.result && job.result.rendered_video_path) {
@@ -1491,6 +1692,17 @@ const { createApp, computed } = Vue;
             }
             this.agentLogs.push('⏱️ 轮询超时，请查看终端日志');
             this.agentRunning = false;
+          },
+
+          generateSessionTitleFromPrompt(prompt) {
+            // 从提示文本生成简洁的会话标题（取前 50 个字符或第一句）
+            if (!prompt || !prompt.trim()) return null;
+            const text = prompt.trim();
+            // 只取中文、字母、数字
+            const cleaned = text.replace(/[^\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ffa-zA-Z0-9（）()，。]/g, ' ').trim();
+            if (!cleaned) return null;
+            // 取前 40 个字符
+            return cleaned.substring(0, 40);
           },
 
           resetAgentPanel() {

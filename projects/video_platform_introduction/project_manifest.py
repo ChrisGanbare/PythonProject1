@@ -6,7 +6,7 @@ PROJECT_MANIFEST = {
     "default_task": "smoke_check",
     "capabilities": {
         "screenplay_workflow": True,
-        "viz_backends": ["manim"],
+        "viz_backends": ["matplotlib", "manim"],  # matplotlib used when manim not installed
     },
     "tasks": {
         "smoke_check": {
@@ -19,7 +19,7 @@ PROJECT_MANIFEST = {
         },
         "generate_intro_video": {
             "callable": "video_platform_introduction.entrypoints:run_intro_video",
-            "description": "Generate introduction video clips (Manim)",
+            "description": "Generate introduction video clips (Manim when available, matplotlib fallback)",
         },
     },
 }

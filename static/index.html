@@ -134,6 +134,9 @@
                       <div v-if="proj.description && getProjectDisplayName(proj) !== proj.name" class="text-muted fw-normal text-truncate" style="font-size: 0.68rem; opacity: 0.7">
                           {{ proj.name }}
                       </div>
+                      <div v-if="proj.capabilities && proj.capabilities.viz_backends && proj.capabilities.viz_backends.length" class="d-flex flex-wrap gap-1 mt-1">
+                        <span v-for="b in proj.capabilities.viz_backends" :key="b" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size:0.6rem;font-weight:500">{{ b }}</span>
+                      </div>
                   </div>
                 </button>
                 <div v-if="proj.deletable !== false" class="sidebar-proj-action" @click.stop>
@@ -174,45 +177,74 @@
 
             <div v-else-if="sidebarPrimaryTab === 'agent'" class="sidebar-tab-panel sidebar-tab-agent flex-grow-1 min-h-0 d-flex flex-column">
             <div class="studio-agent-panel flex-grow-1 d-flex flex-column min-h-0 px-3 pb-2">
-              <p class="text-muted small mb-2 flex-shrink-0 sidebar-micro-hint">查看和管理 AI 对话记录。</p>
+              <p class="text-muted small mb-2 flex-shrink-0 sidebar-micro-hint">每次只能有一个进行中的会话。完成后可编辑标题或删除。</p>
               <div class="d-flex flex-wrap gap-1 mb-2 align-items-center flex-shrink-0">
                 <button type="button" class="btn btn-sm btn-outline-secondary" title="刷新会话列表" @click="fetchStudioSessions">
                   <i class="bi bi-arrow-clockwise"></i>
                 </button>
-                <input
-                  type="text"
-                  class="form-control form-control-sm flex-grow-1"
-                  style="min-width: 0"
-                  v-model.trim="newStudioSessionTitle"
-                  placeholder="标题（可选）"
-                  maxlength="200"
-                  @keydown.enter.prevent="createStudioSession"
-                >
-                <button type="button" class="btn btn-sm btn-primary flex-shrink-0" @click="createStudioSession">新建会话</button>
+                <button type="button" class="btn btn-sm btn-primary flex-grow-1"
+                  :disabled="hasActiveStudioSession"
+                  :title="hasActiveStudioSession ? '已有进行中的会话，完成后才能创建新会话' : '新建意图会话'"
+                  @click="createStudioSession">
+                  <i class="bi bi-plus-circle me-1"></i>新建会话
+                </button>
               </div>
               <div v-if="studioSessionsSoftNotice" class="alert alert-light border small py-2 mb-2 flex-shrink-0 text-secondary" role="status">{{ studioSessionsSoftNotice }}</div>
               <p v-if="studioSessionsError" class="text-danger small mb-1 flex-shrink-0">{{ studioSessionsError }}</p>
+              <div
+                v-if="studioSessions.filter(s => !s.is_completed).length > 1"
+                class="d-flex align-items-center gap-1 mb-2 flex-shrink-0 px-1 py-1 rounded"
+                style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25)"
+              >
+                <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:0.72rem"></i>
+                <span class="text-warning small flex-grow-1" style="font-size:0.72rem">存在 {{ studioSessions.filter(s => !s.is_completed).length }} 个残余空会话</span>
+                <button type="button" class="btn btn-sm py-0 px-1 text-warning border-0"
+                  style="font-size:0.72rem;background:rgba(245,158,11,0.12)"
+                  @click="cleanupStaleSessions">一键清理</button>
+              </div>
               <div v-if="studioSessionsLoading" class="text-muted small py-1 flex-shrink-0">加载会话…</div>
               <div v-else class="studio-session-list-scroll">
                 <p v-if="studioSessions.length === 0 && !studioSessionsSoftNotice" class="text-muted small mb-0">
-                  暂无会话，点击「新建会话」开始。
+                  暂无会话。填写自然语言后右侧自动编译会生成会话，或点上方「新建会话」手动创建。
                 </p>
-                <button
+                <div
                   v-for="s in studioSessions"
                   :key="s.id"
-                  type="button"
-                  class="btn btn-sm w-100 text-start mb-1 studio-session-row"
-                  :class="selectedStudioSessionId === s.id ? 'btn-primary' : 'btn-outline-secondary'"
+                  class="studio-session-item"
+                  :class="{ 'is-selected': selectedStudioSessionId === s.id, 'is-active': !s.is_completed }"
                   @click="selectStudioSession(s.id)"
                 >
-                  <span class="d-block text-truncate studio-session-row-title">{{ studioSessionLabel(s) }}</span>
-                  <span class="small opacity-75">{{ formatStudioTime(s.updated_at || s.created_at) }}</span>
-                </button>
+                  <div class="ssi-indicator">
+                    <span v-if="!s.is_completed" class="ssi-pulse-dot"></span>
+                    <i v-else class="bi bi-chat-left-dots ssi-done-icon"></i>
+                  </div>
+                  <div class="ssi-body">
+                    <div class="ssi-title text-truncate">{{ studioSessionLabel(s) }}</div>
+                    <div class="ssi-time">{{ formatStudioTime(s.updated_at || s.created_at) }}</div>
+                  </div>
+                  <div class="ssi-actions" @click.stop>
+                    <button type="button" class="ssi-btn" title="编辑标题"
+                      @click="openEditSessionTitle(s.id, s.title)">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="ssi-btn ssi-btn-danger"
+                      :disabled="!s.is_completed"
+                      :title="s.is_completed ? '删除会话' : '进行中的会话无法删除'"
+                      @click="confirmDeleteSession(s.id)">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div v-if="selectedStudioSessionId" class="studio-compile-history flex-grow-1 min-h-0 d-flex flex-column mt-2 pt-2 border-top border-light">
                 <div class="d-flex justify-content-between align-items-center mb-1 flex-shrink-0">
                   <span class="small fw-bold text-secondary"><i class="bi bi-clock-history me-1"></i>编译历史</span>
-                  <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @click="clearStudioSessionSelection">清除选中</button>
+                  <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted" @click="refreshStudioSessionDetail" title="刷新">
+                      <i class="bi bi-arrow-clockwise" style="font-size:0.8rem"></i>
+                    </button>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @click="clearStudioSessionSelection">关闭</button>
+                  </div>
                 </div>
                 <div v-if="studioSessionDetailLoading" class="text-muted small">加载详情…</div>
                 <div v-else-if="studioSessionDetail && studioSessionDetail.turns && studioSessionDetail.turns.length === 0" class="text-muted small">暂无对话记录。</div>
@@ -482,29 +514,35 @@
                 </div>
               </div>
               <div class="card-body p-4">
-                <h6 class="text-uppercase text-muted fw-bold small mb-3">参数（可直接修改）</h6>
-                <div class="row g-3 mb-4">
-                  <div class="col-md-6" v-for="(val, key) in agentEditedKwargs" :key="'ak-'+key">
-                    <div class="form-group">
-                      <label class="form-label param-label">{{ getFieldLabel(key) }}</label>
-                      <select
-                        v-if="getFieldType(key) === 'select'"
-                        class="form-select"
-                        v-model="agentEditedKwargs[key]"
-                        :disabled="agentRunning"
-                      >
-                        <option v-for="opt in getFieldOptions(key)" :value="opt.value" :key="opt.value">{{ opt.label }}</option>
-                      </select>
-                      <input
-                        v-else
-                        :type="(typeof val === 'number') ? 'number' : 'text'"
-                        :step="(typeof val === 'number' && !Number.isInteger(val)) ? '0.0001' : '1'"
-                        class="form-control"
-                        v-model="agentEditedKwargs[key]"
-                        :disabled="agentRunning"
-                      >
+                <template v-if="Object.keys(agentEditedKwargs).length > 0">
+                  <h6 class="text-uppercase text-muted fw-bold small mb-3">参数（可直接修改）</h6>
+                  <div class="row g-3 mb-4">
+                    <div class="col-md-6" v-for="(val, key) in agentEditedKwargs" :key="'ak-'+key">
+                      <div class="form-group">
+                        <label class="form-label param-label">{{ getFieldLabel(key) }}</label>
+                        <select
+                          v-if="getFieldType(key) === 'select'"
+                          class="form-select"
+                          v-model="agentEditedKwargs[key]"
+                          :disabled="agentRunning"
+                        >
+                          <option v-for="opt in getFieldOptions(key)" :value="opt.value" :key="opt.value">{{ opt.label }}</option>
+                        </select>
+                        <input
+                          v-else
+                          :type="(typeof val === 'number') ? 'number' : 'text'"
+                          :step="(typeof val === 'number' && !Number.isInteger(val)) ? '0.0001' : '1'"
+                          class="form-control"
+                          v-model="agentEditedKwargs[key]"
+                          :disabled="agentRunning"
+                        >
+                      </div>
                     </div>
                   </div>
+                </template>
+                <div v-else class="alert alert-secondary py-2 mb-3 small">
+                  <i class="bi bi-info-circle me-1"></i>
+                  该任务不需要配置参数，点击「开始渲染」即可直接执行。
                 </div>
                 <div class="d-flex gap-3 align-items-center flex-wrap">
                   <button
@@ -516,7 +554,7 @@
                     <span v-if="agentRunning" class="spinner-border spinner-border-sm me-1" role="status"></span>
                     <i v-else-if="agentJobSuccess" class="bi bi-check-circle-fill me-1"></i>
                     <i v-else class="bi bi-play-fill me-1"></i>
-                    {{ agentRunning ? '渲染中…' : agentJobSuccess ? '✅ 渲染完成' : '▶ 开始渲染' }}
+                    {{ agentRunning ? '渲染中…' : agentJobSuccess ? '渲染完成' : '开始渲染' }}
                   </button>
                   <button
                     v-if="agentJobSuccess || agentJobFailure"
@@ -641,7 +679,7 @@
                       <span v-if="csApplying" class="spinner-border spinner-border-sm me-1" role="status"></span>
                       <i v-else-if="csLatestPatchApplied" class="bi bi-check-circle-fill me-1"></i>
                       <i v-else class="bi bi-arrow-down-circle me-1"></i>
-                      {{ csApplying ? '写入中…' : csLatestPatchApplied ? '✅ 已写入磁盘' : '写入磁盘' }}
+                      {{ csApplying ? '写入中…' : csLatestPatchApplied ? '已写入磁盘' : '写入磁盘' }}
                     </button>
                     <button type="button" class="btn btn-outline-secondary btn-sm" @click="csCopyPatch">
                       <i class="bi bi-clipboard me-1"></i>复制代码
@@ -708,6 +746,12 @@
                     <div class="small fw-bold">{{ step.title }}</div>
                     <div class="text-muted" style="font-size:0.72rem;line-height:1.3">{{ step.hint }}</div>
                   </div>
+                </div>
+                <div v-if="vizBackends.length" class="d-flex flex-wrap align-items-center gap-2 mt-2 small text-muted">
+                  <span>渲染后端：</span>
+                  <span v-for="vb in vizBackends" :key="vb.name" class="badge bg-light text-dark border" style="font-size:0.68rem">
+                    {{ vb.name }}<template v-if="vb.available"> ✓</template><template v-else> ✗</template>
+                  </span>
                 </div>
               </div>
             </div>
@@ -1014,6 +1058,16 @@
                 <div v-if="!taskSuccess && lastFailure" class="alert alert-danger small py-2 mb-3">
                   <div class="fw-semibold mb-1">错误信息</div>
                   <div class="font-monospace" style="white-space:pre-wrap;word-break:break-word">{{ lastFailure.error }}</div>
+                  <div v-if="lastFailure.selfCorrection" class="mt-2 pt-2 border-top border-danger border-opacity-25">
+                    <div class="fw-semibold mb-1">Self-Correction 诊断</div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                      <span class="badge" :class="lastFailure.selfCorrection.auto_correctable ? 'bg-warning text-dark' : 'bg-secondary'">{{ lastFailure.selfCorrection.error_category }}</span>
+                      <span v-if="lastFailure.selfCorrection.auto_correctable" class="small text-warning-emphasis">已尝试自动修复但仍失败</span>
+                      <span v-else class="small text-muted">需要人工介入</span>
+                    </div>
+                    <div v-if="lastFailure.selfCorrection.suggested_fix" class="small"><strong>建议：</strong>{{ lastFailure.selfCorrection.suggested_fix }}</div>
+                    <div v-if="lastFailure.selfCorrection.correction_report" class="small mt-1 text-muted">共尝试 {{ lastFailure.selfCorrection.correction_report.total_attempts }} 次自动修复</div>
+                  </div>
                   <div v-if="lastFailure.jobLog && lastFailure.jobLog.length" class="mt-2 pt-2 border-top border-danger border-opacity-25">
                     <div class="fw-semibold mb-1">Job 日志（节选）</div>
                     <div v-for="(line, li) in lastFailure.jobLog.slice(-8)" :key="li" class="small opacity-75">{{ line }}</div>
@@ -1027,6 +1081,16 @@
                       <span class="badge bg-secondary me-2">{{ art.label }}</span>{{ art.path }}
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0" @click="copyText(art.path)">复制路径</button>
+                  </div>
+                </div>
+
+                <div v-if="taskSuccess && jobSelfCorrection" class="alert alert-warning small py-2 mb-3">
+                  <div class="fw-semibold mb-1"><i class="bi bi-arrow-repeat me-1"></i>自动修复记录</div>
+                  <div class="small">本次渲染经过 <strong>{{ jobSelfCorrection.total_attempts }}</strong> 次自动重试后成功完成。</div>
+                  <div v-if="jobSelfCorrection.attempts && jobSelfCorrection.attempts.length" class="mt-1">
+                    <div v-for="(att, i) in jobSelfCorrection.attempts" :key="i" class="small text-muted">
+                      #{{ i + 1 }}: {{ att.category }} — {{ att.fix }}
+                    </div>
                   </div>
                 </div>
 

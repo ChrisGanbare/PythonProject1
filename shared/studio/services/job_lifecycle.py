@@ -14,6 +14,11 @@ from orchestrator.registry import ProjectDefinition
 from orchestrator.runner import run_project_task
 
 from shared.agent.schemas import StandardVideoJobRequest
+from shared.core.self_correction import (
+    CorrectionReport,
+    SelfCorrectingRunner,
+    classify_error,
+)
 from shared.studio.db.base import SessionLocal, get_engine
 from shared.studio.db.models import RenderJob
 from shared.studio.job_result import normalize_job_result
@@ -117,7 +122,12 @@ def run_render_job_task(
     task_name: str,
     kwargs: dict[str, Any],
 ) -> None:
-    """供 FastAPI BackgroundTasks 调用：同步执行子项目任务并写回数据库。"""
+    """供 FastAPI BackgroundTasks 调用：同步执行子项目任务并写回数据库。
+
+    启用 Self-Correction 反馈环：渲染失败时自动分类错误并对可自愈类型
+    重试（字体回退、分辨率降级、超时延长等），最终将修正审计记录写入
+    job result 供前端展示。
+    """
     repo_root = _repo_root()
     logger.info("STARTING TASK: %s:%s (Job: %s)", project.name, task_name, job_id)
 
@@ -131,12 +141,36 @@ def run_render_job_task(
         job.append_log(f"Task started at {datetime.now(timezone.utc).isoformat()}")
         session.commit()
 
+    # Self-Correction runner wraps the actual task execution
+    log_dir = repo_root / "runtime" / "logs"
+    runner = SelfCorrectingRunner(max_retries=2, backoff_base=2.0, log_dir=log_dir)
+    correction_report: CorrectionReport | None = None
+
+    def _on_retry(attempt: int, diagnosis) -> None:
+        with SessionLocal(bind=get_engine()) as session:
+            job = session.get(RenderJob, job_id)
+            if job:
+                job.append_log(
+                    f"Self-Correction: attempt {attempt} failed [{diagnosis.category.value}]. "
+                    f"Auto-fix: {diagnosis.suggested_fix}"
+                )
+                session.commit()
+
     try:
-        result = run_project_task(project, task_name, kwargs)
+        result, correction_report = runner.run(
+            fn=run_project_task,
+            kwargs={"project": project, "task_name": task_name, "task_kwargs": kwargs},
+            error_extractor=lambda exc: str(exc),
+            on_retry=_on_retry,
+        )
         if isinstance(result, dict):
             result = dict(result)
             result["job_id"] = job_id
         result = normalize_job_result(result, repo_root=repo_root, job_id=job_id)
+
+        # Attach correction report to result if retries happened
+        if correction_report and correction_report.total_attempts > 0:
+            result["self_correction"] = correction_report.to_dict()
 
         with SessionLocal(bind=get_engine()) as session:
             job = session.get(RenderJob, job_id)
@@ -148,17 +182,43 @@ def run_render_job_task(
                 job.result_json = json.dumps(result, ensure_ascii=False, default=str)
             except (TypeError, ValueError):
                 job.result_json = json.dumps(str(result), ensure_ascii=False)
-            job.append_log("Task completed successfully.")
+            if correction_report and correction_report.total_attempts > 0:
+                job.append_log(
+                    f"Task completed with {correction_report.total_attempts} self-correction attempt(s)."
+                )
+            else:
+                job.append_log("Task completed successfully.")
             session.commit()
         logger.info("TASK FINISHED: %s:%s. Job: %s", project.name, task_name, job_id)
     except Exception as exc:
         logger.error("TASK FAILED: %s:%s. Error: %s", project.name, task_name, exc, exc_info=True)
+
+        # Classify the final error for the user
+        diagnosis = classify_error(str(exc), exc)
+        error_detail = str(exc)
+        correction_info: dict[str, Any] = {
+            "error_category": diagnosis.category.value,
+            "suggested_fix": diagnosis.suggested_fix,
+            "auto_correctable": diagnosis.auto_correctable,
+        }
+        if correction_report and correction_report.total_attempts > 0:
+            correction_info["correction_report"] = correction_report.to_dict()
+
         with SessionLocal(bind=get_engine()) as session:
             job = session.get(RenderJob, job_id)
             if job is None:
                 return
             job.status = "failed"
             job.finished_at = datetime.now(timezone.utc)
-            job.error_text = str(exc)
+            job.error_text = error_detail
+            # Store correction info as part of result for frontend consumption
+            try:
+                job.result_json = json.dumps(
+                    {"self_correction": correction_info}, ensure_ascii=False
+                )
+            except (TypeError, ValueError):
+                pass
             job.append_log(f"Error: {exc!s}")
+            if diagnosis.suggested_fix:
+                job.append_log(f"Self-Correction diagnosis: [{diagnosis.category.value}] {diagnosis.suggested_fix}")
             session.commit()

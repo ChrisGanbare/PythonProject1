@@ -14,12 +14,13 @@
 
 ## 现状与缺口
 
-| 已有能力 | 缺口 |
-|----------|------|
-| 子项目 manifest + 调度器 | `shared/visualization/` 仅脚手架，未形成统一抽象 |
-| 各项目 `renderer/impl.py`（如 matplotlib） | 缺少跨项目的 **Chart/Frame 契约** 与 **后端可插拔** |
-| 平台预设、质量档、剧本库、素材注册表 | 剧本与 **图表规格** 未稳定绑定（如 scene → chart_id） |
-| FFmpeg / VideoEditor 后处理 | 数据管线（清洗→聚合）与渲染参数分散 |
+| 已有能力 | 待增强 / 待落地 |
+|----------|-----------|
+| 子项目 manifest + 调度器 | 剧本与**图表规格**未稳定绑定（字幕主时钟与图表轴对齐） |
+| `shared/visualization/`：协议、PNG 帧缓存、matplotlib + **manim** 后端已注册 | 各项目 `impl.py` 仍直调 matplotlib，未全面通过 `VizRenderBackend` 接口方法调用 |
+| 平台预设、质量档、剧本库、素材注册表 | 数据管线（清洗→聚合）与渲染参数分散 |
+| FFmpeg / VideoEditor 后处理（SRT/ASS 字幕、封面、BGM） | `PngCachingFFMpegWriter` 断点续帧实现完整，但多个项目未默认开启 |
+| **Self-Correction 反馈环**（`shared/core/self_correction.py`）：渲染子进程错误自动分类 + 重试 | 需各项目 `animation.py` 接入；AI 辅助修正（Phase 4）待集成 |
 
 ## 目标架构（四层）
 
@@ -56,6 +57,17 @@
 - **贷款对比主图**：`viz_scene_id=loan_compare_main` 时，`chart_type` 映射到 `render_expression.layout.chart_focus`（`dual_cumulative`→`balanced`，`trend_gap`→`trend-gap` 等），见 `loan_comparison/renderer/viz_presets.py` 与 `impl.py` 中 `CHART_FOCUS`。
 - **待加强**：字幕主时钟与图表轴完全对齐；更多 chart_type 与像素层一一对应。
 
+### P2.5 — Self-Correction 反馈环
+
+- **模块**：`shared/core/self_correction.py`，提供 `SelfCorrectingRunner`（callable 级）和 `self_correcting_subprocess`（子进程级）。
+- **错误分类器**：`classify_error()` 将 stderr / 异常文本模式匹配为 `ErrorCategory`（`font_not_found` / `ffmpeg_error` / `out_of_memory` / `timeout` / `manim_scene_error` 等 10 类）。
+- **自动修正**：对可自愈类别（字体回退、分辨率降级、像素格式切换等），自动补丁 env / params 并重试（默认 2 次 + 指数回退）。
+- **审计**：每次修正会话写入 `CorrectionReport`（JSON），存到 `runtime/logs/` 下；与 `TaskManager` 的 `metadata` 字段打通。
+- **接入点**：
+  - 各项目 `renderer/animation.py`：将 `subprocess.run` 替换为 `self_correcting_subprocess`。
+  - `ManimVizBackend.render_scene()`：内部已做 timeout 处理，可外包 `SelfCorrectingRunner`。
+  - `orchestrator/runner.py`：可选包装 `run_project_task` 以拦截任务级异常。
+
 ### P3 — 性能与规模化
 
 - **渲染指纹**：`generate_loan_animation` 向子进程设置 `VIDEO_RENDER_FINGERPRINT`（与 manifest `reproducibility_fingerprint` 同源），`impl.py` 启动时打印短前缀便于对日志。
@@ -64,7 +76,8 @@
 
 ## 扩展性预留
 
-- **后端注册表**：`shared/visualization/registry.py` 默认注册 **matplotlib**（帧级数据图表最高效、与现有 impl 一致）；可选注册 `plotly_static`（`PlotlyStaticVizBackend`，需 `plotly+kaleido`）。子项目 manifest 可用 `capabilities.viz_backends` 声明支持项。
+- **后端注册表**：`shared/visualization/registry.py` 默认注册 **matplotlib**（帧级数据图表最高效、与现有 impl 一致）；自动注册 **manim**（`ManimVizBackend`，需 `manim>=0.18`，安装时自动检测可用性）；可选注册 `plotly_static`（`PlotlyStaticVizBackend`，需 `plotly+kaleido`）。子项目 manifest 可用 `capabilities.viz_backends` 声明支持项。
+- **Manim 适用场景**：公式推导、算法步骤演示、几何变换、回归拟合动画、分布演示、统计解释——作为 matplotlib 数据图表的**辅助后端**，用于解释性叙事片段。
 - **非图表层**：片头片尾、大字报仍走现有 `VideoEditor` + 素材库，与图表层解耦。
 
 ## 与现有模块的关系
@@ -75,6 +88,8 @@
 | `shared/platform/` | 平台规格单一事实来源 |
 | `shared/library/` + 素材注册表 | 创作者资产与成片溯源 |
 | `shared/content/screenplay*` | 叙事与节拍；`action_directives` 与 manifest `viz` 块对齐（持续收紧） |
+| `shared/visualization/backends/manim_backend.py` | Manim 辅助后端——公式演绎、统计解释片段 |
+| `shared/core/self_correction.py` | 渲染 Self-Correction 反馈环——错误分类 + 自动修正 + 审计 |
 | 各项目 `renderer/impl.py` | 短期仍为主体实现，逐步迁入协议方法 |
 
 ## 成功标准（可度量）

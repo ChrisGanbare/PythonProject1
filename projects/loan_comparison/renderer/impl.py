@@ -20,8 +20,10 @@ import sys
 from pathlib import Path
 
 _WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
-if str(_WORKSPACE_ROOT) not in sys.path:
-    sys.path.insert(0, str(_WORKSPACE_ROOT))
+_PROJECTS_ROOT = Path(__file__).resolve().parents[2]
+for _root in [str(_WORKSPACE_ROOT), str(_PROJECTS_ROOT)]:
+    if _root not in sys.path:
+        sys.path.insert(0, str(_root))
 
 from shared.content.renderer_tokens import (
     FigureBoundsConfig,
@@ -43,6 +45,7 @@ from shared.visualization.png_frame_cache import (
     encode_video_from_png_sequence_ffmpeg,
     frame_png_path,
 )
+from loan_comparison.renderer.copy_metrics import build_loan_copy_metrics
 
 warnings.filterwarnings('ignore')
 
@@ -62,6 +65,26 @@ ANNUAL_RATE   = float(os.getenv("VIDEO_ANNUAL_RATE", "0.045"))      # 年利率
 MONTHLY_RATE  = ANNUAL_RATE / 12
 LOAN_YEARS    = int(os.getenv("VIDEO_LOAN_YEARS", "30"))
 TOTAL_MONTHS  = LOAN_YEARS * 12
+_DEFAULT_EI_MONTHLY = (
+    LOAN_AMOUNT * MONTHLY_RATE * (1 + MONTHLY_RATE) ** TOTAL_MONTHS /
+    ((1 + MONTHLY_RATE) ** TOTAL_MONTHS - 1)
+)
+_DEFAULT_EP_PRINCIPAL = LOAN_AMOUNT / TOTAL_MONTHS
+_DEFAULT_FINAL_EI = _DEFAULT_EI_MONTHLY * TOTAL_MONTHS - LOAN_AMOUNT
+_DEFAULT_FINAL_EP = LOAN_AMOUNT * MONTHLY_RATE * (TOTAL_MONTHS + 1) / 2
+_DEFAULT_EP_FIRST = _DEFAULT_EP_PRINCIPAL + LOAN_AMOUNT * MONTHLY_RATE
+_DEFAULT_EP_LAST = _DEFAULT_EP_PRINCIPAL * (1 + MONTHLY_RATE)
+COPY_METRICS = build_loan_copy_metrics(
+    loan_amount=LOAN_AMOUNT,
+    annual_rate=ANNUAL_RATE,
+    loan_years=LOAN_YEARS,
+    total_months=TOTAL_MONTHS,
+    final_equal_interest=_DEFAULT_FINAL_EI,
+    final_equal_principal=_DEFAULT_FINAL_EP,
+    equal_interest_monthly=_DEFAULT_EI_MONTHLY,
+    equal_principal_first_month=_DEFAULT_EP_FIRST,
+    equal_principal_last_month=_DEFAULT_EP_LAST,
+)
 
 # ============================================================
 # 配色方案（深色Flourish风格）
@@ -94,9 +117,11 @@ TEXT_DIM   = '#4B5563'
 # ============================================================
 # 视频规格（竖屏 9:16）
 # ============================================================
-FIG_W        = int(os.getenv("VIDEO_WIDTH", "1080")) / 100
-FIG_H        = int(os.getenv("VIDEO_HEIGHT", "1920")) / 100
+VIDEO_WIDTH_PX = int(os.getenv("VIDEO_WIDTH", "1080"))
+VIDEO_HEIGHT_PX = int(os.getenv("VIDEO_HEIGHT", "1920"))
 DPI          = int(os.getenv("VIDEO_DPI", "100"))
+FIG_W        = VIDEO_WIDTH_PX / DPI
+FIG_H        = VIDEO_HEIGHT_PX / DPI
 FPS          = int(os.getenv("VIDEO_FPS", "30"))
 TOTAL_SECS   = int(os.getenv("VIDEO_DURATION", "30"))
 TOTAL_FRAMES = FPS * TOTAL_SECS
@@ -262,12 +287,28 @@ def _scene_window_months() -> int:
 
 
 def _current_scene_label() -> str:
-    explicit_label = _scene_value('scene_label')
+    aliases = {
+        'main': '主对比',
+        'intro': '开场钩子',
+        'hook': '开场钩子',
+        'setup': '建立对比',
+        'climax': '差额拉开',
+        'conclusion': '结论落点',
+        'outro': '结论落点',
+        'cta': '结论落点',
+    }
+    explicit_label = _scene_value('scene_label').lower()
     if explicit_label:
-        return explicit_label
-    scene_id = _scene_identifier()
+        for token, label in aliases.items():
+            if token in explicit_label:
+                return label
+        return explicit_label.title()
+    scene_id = _scene_identifier().lower()
     if not scene_id:
         return ''
+    for token, label in aliases.items():
+        if token in scene_id:
+            return label
     normalized = scene_id.replace('scene_', '').replace('_', ' ').strip()
     return normalized.title()
 
@@ -293,8 +334,8 @@ def _resolve_scene_copy_band_tokens() -> dict[str, object]:
 
     return build_scene_copy_band_tokens(
         platform=str(SAFE_AREA.get('platform', 'custom')),
-        width=int(round(FIG_W * 100)),
-        height=int(round(FIG_H * 100)),
+        width=VIDEO_WIDTH_PX,
+        height=VIDEO_HEIGHT_PX,
         safe_top=int(SAFE_AREA.get('top_px', 0)),
         safe_bottom=int(SAFE_AREA.get('bottom_px', 0)),
         safe_left=int(SAFE_AREA.get('left_px', 0)),
@@ -470,12 +511,12 @@ def _resolve_current_month(frame: int) -> int:
 
 F_INTRO_END, F_ANIM_END, F_CONC_END = _resolve_phase_frames()
 
-TITLE_TEXT = RENDER_EXPRESSION.get("title_text", "贷款还款方式对比")
-HOOK_TEXT = RENDER_EXPRESSION.get("hook_text", "前期多还本金，后期少付利息")
-SUMMARY_TEXT = RENDER_EXPRESSION.get("summary_text", "时间是利息的朋友，也是你的敌人")
-CONCLUSION_TITLE = RENDER_EXPRESSION.get("conclusion_title", "最终策略判断")
-CONCLUSION_BODY = RENDER_EXPRESSION.get("conclusion_body", "如果现金流允许，等额本金通常更省总利息。")
-ACCENT_LABEL = RENDER_EXPRESSION.get("accent_label", "先看自己的现金流，再决定还款方式。")
+TITLE_TEXT = RENDER_EXPRESSION.get("title_text", "等额本息 vs 等额本金")
+HOOK_TEXT = RENDER_EXPRESSION.get("hook_text", str(COPY_METRICS["hook_text"]))
+SUMMARY_TEXT = RENDER_EXPRESSION.get("summary_text", str(COPY_METRICS["summary_text"]))
+CONCLUSION_TITLE = RENDER_EXPRESSION.get("conclusion_title", str(COPY_METRICS["conclusion_title"]))
+CONCLUSION_BODY = RENDER_EXPRESSION.get("conclusion_body", str(COPY_METRICS["conclusion_body"]))
+ACCENT_LABEL = RENDER_EXPRESSION.get("accent_label", str(COPY_METRICS["accent_label"]))
 THEME = RENDER_EXPRESSION.get("theme", {})
 TYPOGRAPHY = RENDER_EXPRESSION.get("typography", {})
 CARD_STYLE = RENDER_EXPRESSION.get("card", {})
@@ -666,6 +707,17 @@ FINAL_EP  = CUM_EP[-1]
 FINAL_GAP = FINAL_EI - FINAL_EP
 EP_FIRST_MONTH = LOAN_DATA[0]['ep_total']
 EP_LAST_MONTH  = LOAN_DATA[-1]['ep_total']
+COPY_METRICS = build_loan_copy_metrics(
+    loan_amount=LOAN_AMOUNT,
+    annual_rate=ANNUAL_RATE,
+    loan_years=LOAN_YEARS,
+    total_months=TOTAL_MONTHS,
+    final_equal_interest=FINAL_EI,
+    final_equal_principal=FINAL_EP,
+    equal_interest_monthly=EI_MONTHLY,
+    equal_principal_first_month=EP_FIRST_MONTH,
+    equal_principal_last_month=EP_LAST_MONTH,
+)
 
 print(f"  等额本息: 月供={EI_MONTHLY:.0f}元  总利息={FINAL_EI/10000:.1f}万")
 print(f"  等额本金: 首月={EP_FIRST_MONTH:.0f}元  总利息={FINAL_EP/10000:.1f}万")
@@ -750,17 +802,24 @@ def draw_title(alpha=1.0):
     ax_title.text(50, 82, TITLE_TEXT,
                   fontsize=max(18, int(TITLE_FONT_SIZE * TITLE_SCALE)), fontweight=TITLE_FONT_WEIGHT, color=TEXT_WHITE,
                   ha='center', va='center', alpha=alpha, zorder=6)
+    ax_title.text(50, 69, HOOK_TEXT,
+                  fontsize=max(9, BODY_FONT_SIZE), color=CARD_BODY_COLOR,
+                  ha='center', va='center', alpha=alpha * 0.95, zorder=6)
 
-    ax_title.text(28, 58, '等额本息', fontsize=SUBTITLE_FONT_SIZE, fontweight=SUBTITLE_FONT_WEIGHT,
+    ax_title.text(28, 54, '等额本息', fontsize=SUBTITLE_FONT_SIZE, fontweight=SUBTITLE_FONT_WEIGHT,
                   color=EI_BLUE, ha='center', va='center', alpha=alpha, zorder=6)
-    ax_title.text(50, 58, 'vs', fontsize=CAPTION_FONT_SIZE + 3, color=TEXT_GRAY,
+    ax_title.text(50, 54, 'vs', fontsize=CAPTION_FONT_SIZE + 3, color=TEXT_GRAY,
                   ha='center', va='center', alpha=alpha, zorder=6)
-    ax_title.text(72, 58, '等额本金', fontsize=SUBTITLE_FONT_SIZE, fontweight=SUBTITLE_FONT_WEIGHT,
+    ax_title.text(72, 54, '等额本金', fontsize=SUBTITLE_FONT_SIZE, fontweight=SUBTITLE_FONT_WEIGHT,
                   color=EP_ORANGE, ha='center', va='center', alpha=alpha, zorder=6)
 
-    ax_title.plot([5, 95], [42, 42], color='#334155', linewidth=0.8, alpha=0.5 * alpha)
+    ax_title.plot([5, 95], [38, 38], color='#334155', linewidth=0.8, alpha=0.5 * alpha)
 
-    for label, value, cx in [('贷款', '100万', 22), ('利率', '4.5%/年', 50), ('期限', '30年', 78)]:
+    for label, value, cx in [
+        ('贷款', str(COPY_METRICS['loan_amount_short']), 22),
+        ('利率', f"{COPY_METRICS['annual_rate_label']}/年", 50),
+        ('期限', f"{LOAN_YEARS}年", 78),
+    ]:
         ax_title.text(cx, 32, label, fontsize=CAPTION_FONT_SIZE, color=TEXT_GRAY,
                       ha='center', va='center', alpha=alpha, zorder=6)
         ax_title.text(cx, 20, value, fontsize=BODY_FONT_SIZE + 1, fontweight=SUBTITLE_FONT_WEIGHT,
@@ -796,9 +855,9 @@ def draw_intro(frame):
                     alpha=ease_out_cubic(clamp(t_a * 3 * scene_speed)), zorder=6)
 
         params = [
-            ('💰  贷款金额', '100 万元', EI_BLUE,    70),
-            ('📈  年利率',   '4.5 %',   ACCENT_GOLD, 50),
-            ('📅  贷款期限', '30年 / 360期', EP_ORANGE, 30),
+            ('💰  贷款金额', str(COPY_METRICS['loan_amount_full']), EI_BLUE, 70),
+            ('📈  年利率', str(COPY_METRICS['annual_rate_label']), ACCENT_GOLD, 50),
+            ('📅  贷款期限', str(COPY_METRICS['term_label']), EP_ORANGE, 30),
         ]
         if HOOK_SUPPORT_DENSITY == 'sparse':
             params = [params[0], params[-1]]
@@ -815,7 +874,7 @@ def draw_intro(frame):
         clear_ax(ax_bottom)
         ax_bottom.set_xlim(0, 100)
         ax_bottom.set_ylim(0, 100)
-        intro_message = scene_prompt if HOOK_MODE == 'hero-spotlight' else (scene_prompt or ('接下来：\n两种还款方式 30年的利息差距\n究竟有多大？' if HOOK_LAYOUT != 'hero' else scene_narration))
+        intro_message = scene_prompt if HOOK_MODE == 'hero-spotlight' else (scene_prompt or (f'接下来：\n两种还款方式 {LOAN_YEARS}年的利息差距\n究竟有多大？' if HOOK_LAYOUT != 'hero' else scene_narration))
         ax_bottom.text(50, 50,
                        intro_message,
                        fontsize=max(14, int(((BODY_FONT_SIZE + 6) if HOOK_MODE == 'hero-spotlight' else (BODY_FONT_SIZE + 4)) * SUMMARY_SCALE)), color=CARD_BODY_COLOR, ha='center', va='center',
@@ -834,7 +893,7 @@ def draw_intro(frame):
         ax_top.text(50, 92, setup_title, fontsize=max(16, int(TITLE_FONT_SIZE * TITLE_SCALE)), fontweight=TITLE_FONT_WEIGHT,
                     color=TEXT_WHITE, ha='center', alpha=alpha0, zorder=6)
         setup_subtitle = _current_scene_visual_prompt(
-            '全周期关键路径一眼看清' if SETUP_DENSITY == 'full-context' else ('30年后，谁多付了更多利息？' if HOOK_LAYOUT != 'hero' else scene_narration),
+            '全周期关键路径一眼看清' if SETUP_DENSITY == 'full-context' else (str(COPY_METRICS['footer_question']) if HOOK_LAYOUT != 'hero' else scene_narration),
             40,
         )
         ax_top.text(50, 84, setup_subtitle,
@@ -843,7 +902,7 @@ def draw_intro(frame):
         # 起点
         sx, sy = 12, 55
         ax_top.plot(sx, sy, 'o', color=CTA_COLOR, markersize=18, zorder=7)
-        ax_top.text(sx, 44, '起点\n100万', fontsize=BODY_FONT_SIZE, color=CTA_COLOR,
+        ax_top.text(sx, 44, f"起点\n{COPY_METRICS['start_point_label']}", fontsize=BODY_FONT_SIZE, color=CTA_COLOR,
                     ha='center', va='top', fontweight=SUBTITLE_FONT_WEIGHT, alpha=alpha0, zorder=6,
                     linespacing=CAPTION_LINE_HEIGHT)
 
@@ -910,7 +969,9 @@ def draw_main(frame):
 
 def _draw_info_cards(cur):
     """当月数据卡片"""
-    _draw_scene_copy_band(alpha=1.0, compact=True)
+    clear_ax(ax_info)
+    ax_info.set_xlim(0, 100)
+    ax_info.set_ylim(0, 100)
 
     d = LOAN_DATA[cur - 1]
     yr, mo = divmod(cur, 12)
@@ -919,53 +980,61 @@ def _draw_info_cards(cur):
     else:
         yr_str = f'第 {yr} 年 {mo:02d} 月'
 
-    ax_info.text(50, 66, yr_str, fontsize=SUBTITLE_FONT_SIZE, fontweight=SUBTITLE_FONT_WEIGHT,
+    headline = _current_scene_narration(SUMMARY_TEXT, 24)
+    ax_info.text(50, 90, headline, fontsize=max(11, BODY_FONT_SIZE + 1), fontweight=SUBTITLE_FONT_WEIGHT,
+                 color=TEXT_WHITE, ha='center', va='center', zorder=6)
+    ax_info.text(50, 80, yr_str, fontsize=SUBTITLE_FONT_SIZE + 1, fontweight=SUBTITLE_FONT_WEIGHT,
                  color=CTA_COLOR, ha='center', va='center', zorder=6)
 
-    # 等额本息卡
-    card_rect(ax_info, 1, 5, 47, 52, EI_BLUE)
-    ax_info.text(25, 50, '等额本息', fontsize=BODY_FONT_SIZE, color=EI_BLUE,
+    card_rect(ax_info, 1, 8, 47, 58, EI_BLUE)
+    ax_info.text(25, 58, '等额本息', fontsize=BODY_FONT_SIZE + 1, color=EI_BLUE,
                  ha='center', fontweight=SUBTITLE_FONT_WEIGHT, zorder=6)
-    ax_info.text(25, 38, f'{d["ei_total"]:.0f}元', fontsize=SUBTITLE_FONT_SIZE,
+    ax_info.text(25, 43, f'{d["ei_total"]:.0f}元', fontsize=SUBTITLE_FONT_SIZE + 2,
                  color=TEXT_WHITE, ha='center', fontweight=SUBTITLE_FONT_WEIGHT, zorder=6)
-    ax_info.text(25, 27, f'本金 {d["ei_principal"]:.0f}',
-                 fontsize=CAPTION_FONT_SIZE, color=PRINCIPAL_GREEN, ha='center', zorder=6)
-    ax_info.text(25, 18, f'利息 {d["ei_interest"]:.0f}',
-                 fontsize=CAPTION_FONT_SIZE, color=INTEREST_RED, ha='center', zorder=6)
+    ax_info.text(25, 29, f'本金 {d["ei_principal"]:.0f}',
+                 fontsize=CAPTION_FONT_SIZE + 1, color=PRINCIPAL_GREEN, ha='center', zorder=6)
+    ax_info.text(25, 19, f'利息 {d["ei_interest"]:.0f}',
+                 fontsize=CAPTION_FONT_SIZE + 1, color=INTEREST_RED, ha='center', zorder=6)
     pct = d['ei_interest'] / d['ei_total'] * 100
     ax_info.text(25, 10, f'利息占比 {pct:.0f}%',
-                 fontsize=CAPTION_FONT_SIZE - 1, color=TEXT_GRAY, ha='center', zorder=6)
+                 fontsize=CAPTION_FONT_SIZE, color=TEXT_GRAY, ha='center', zorder=6)
 
-    # 等额本金卡
-    card_rect(ax_info, 52, 5, 47, 52, EP_ORANGE)
-    ax_info.text(75, 50, '等额本金', fontsize=BODY_FONT_SIZE, color=EP_ORANGE,
+    card_rect(ax_info, 52, 8, 47, 58, EP_ORANGE)
+    ax_info.text(75, 58, '等额本金', fontsize=BODY_FONT_SIZE + 1, color=EP_ORANGE,
                  ha='center', fontweight=SUBTITLE_FONT_WEIGHT, zorder=6)
-    ax_info.text(75, 38, f'{d["ep_total"]:.0f}元', fontsize=SUBTITLE_FONT_SIZE,
+    ax_info.text(75, 43, f'{d["ep_total"]:.0f}元', fontsize=SUBTITLE_FONT_SIZE + 2,
                  color=TEXT_WHITE, ha='center', fontweight=SUBTITLE_FONT_WEIGHT, zorder=6)
-    ax_info.text(75, 27, f'本金 {d["ep_principal"]:.0f}',
-                 fontsize=CAPTION_FONT_SIZE, color=PRINCIPAL_GREEN, ha='center', zorder=6)
-    ax_info.text(75, 18, f'利息 {d["ep_interest"]:.0f}',
-                 fontsize=CAPTION_FONT_SIZE, color=INTEREST_RED, ha='center', zorder=6)
+    ax_info.text(75, 29, f'本金 {d["ep_principal"]:.0f}',
+                 fontsize=CAPTION_FONT_SIZE + 1, color=PRINCIPAL_GREEN, ha='center', zorder=6)
+    ax_info.text(75, 19, f'利息 {d["ep_interest"]:.0f}',
+                 fontsize=CAPTION_FONT_SIZE + 1, color=INTEREST_RED, ha='center', zorder=6)
     pct2 = d['ep_interest'] / d['ep_total'] * 100
     ax_info.text(75, 10, f'利息占比 {pct2:.0f}%',
-                 fontsize=CAPTION_FONT_SIZE - 1, color=TEXT_GRAY, ha='center', zorder=6)
+                 fontsize=CAPTION_FONT_SIZE, color=TEXT_GRAY, ha='center', zorder=6)
 
 def _draw_bar_chart(cur):
     """月供堆叠柱状图（滑动窗口显示最近≤60个月）"""
     ax_top.clear()
     ax_top.set_facecolor(BG_MID)
 
-    # 窗口：根据场景行为展示最近若干个月
-    win_end   = cur
+    # 窗口：根据场景行为展示最近若干个月；移动端限制柱数，避免信息糊成一片
+    win_end = cur
     win_start = max(1, cur - (_scene_window_months() - 1))
-    months    = list(range(win_start, win_end + 1))
-    n         = len(months)
+    months = list(range(win_start, win_end + 1))
+    max_display_points = 24
+    if len(months) > max_display_points:
+        stride = max(1, int(round(len(months) / max_display_points)))
+        sampled = months[::stride]
+        if sampled[-1] != months[-1]:
+            sampled.append(months[-1])
+        months = sampled
+    n = len(months)
 
     max_y = LOAN_DATA[0]['ep_total'] * 1.18
     ax_top.set_xlim(0, n + 1)
     ax_top.set_ylim(0, max_y)
 
-    bw = 0.36
+    bw = 0.56 if n <= 18 else 0.44
 
     for i, m in enumerate(months):
         d  = LOAN_DATA[m - 1]
@@ -1121,8 +1190,8 @@ def _draw_progress(t, cur):
     if scene_label:
         ax_foot.text(6, 92, scene_label, fontsize=max(7, CAPTION_FONT_SIZE - 1),
                      color=TEXT_GRAY, ha='left', va='center', zorder=7)
-    ax_foot.text(50, 79, f'{cur} / 360 期  {pct*100:.0f}%',
-                 fontsize=CAPTION_FONT_SIZE, color=TEXT_WHITE, ha='center', va='center', zorder=7)
+    ax_foot.text(50, 79, f'{cur} / {TOTAL_MONTHS} 期  {pct*100:.0f}%',
+                 fontsize=CAPTION_FONT_SIZE + 1, color=TEXT_WHITE, ha='center', va='center', zorder=7)
 
     # 累计数字
     cei = CUM_EI[cur - 1] / 10000
@@ -1221,7 +1290,7 @@ def draw_conclusion(frame):
     card_rect(ax_bottom, 4, 63, 92, 16, EI_BLUE, BG_CARD2, alpha=a1 * 0.95)
     ax_bottom.text(14, 74, '等额本息', fontsize=SUBTITLE_FONT_SIZE - 1, color=EI_BLUE,
                    fontweight=SUBTITLE_FONT_WEIGHT, va='center', alpha=a1, zorder=7)
-    ax_bottom.text(90, 74, f'30年总利息  {FINAL_EI/10000:.1f} 万元',
+    ax_bottom.text(90, 74, f"{COPY_METRICS['full_interest_label']}  {FINAL_EI/10000:.1f} 万元",
                    fontsize=SUBTITLE_FONT_SIZE - 1, color=EI_BLUE, ha='right', va='center',
                    fontweight=SUBTITLE_FONT_WEIGHT, alpha=a1, zorder=7)
 
@@ -1229,9 +1298,13 @@ def draw_conclusion(frame):
     card_rect(ax_bottom, 4, 44, 92, 16, EP_ORANGE, BG_CARD2, alpha=a2 * 0.95)
     ax_bottom.text(14, 55, '等额本金', fontsize=SUBTITLE_FONT_SIZE - 1, color=EP_ORANGE,
                    fontweight=SUBTITLE_FONT_WEIGHT, va='center', alpha=a2, zorder=7)
-    ax_bottom.text(90, 55, f'30年总利息  {FINAL_EP/10000:.1f} 万元',
+    ax_bottom.text(90, 55, f"{COPY_METRICS['full_interest_label']}  {FINAL_EP/10000:.1f} 万元",
                    fontsize=SUBTITLE_FONT_SIZE - 1, color=EP_ORANGE, ha='right', va='center',
                    fontweight=SUBTITLE_FONT_WEIGHT, alpha=a2, zorder=7)
+
+    ax_bottom.text(50, 38, f"少付 {COPY_METRICS['interest_gap_wan_label']} ｜ 约省 {COPY_METRICS['interest_gap_pct_label']}",
+                   fontsize=max(10, BODY_FONT_SIZE + 1), color=THEME_SECONDARY, ha='center', va='center',
+                   fontweight=SUBTITLE_FONT_WEIGHT, alpha=max(a2, a3), zorder=7)
 
     # 节省大字卡
     spotlight = CONCLUSION_MODE == 'cta-spotlight' or CONCLUSION_LAYOUT == 'spotlight-card'
@@ -1258,12 +1331,12 @@ def draw_conclusion(frame):
     if scene_label:
         ax_foot.text(6, 92, scene_label, fontsize=max(7, CAPTION_FONT_SIZE - 1),
                      color=TEXT_GRAY, ha='left', va='center', zorder=6)
-    ax_foot.text(50, 88, '月供参考（第1期）',
+    ax_foot.text(50, 88, str(COPY_METRICS['monthly_reference_label']),
                  fontsize=BODY_FONT_SIZE, color=TEXT_GRAY, ha='center', alpha=a1, zorder=6)
-    ax_foot.text(26, 70, f'等额本息\n{EI_MONTHLY:.0f}元/月（固定不变）',
+    ax_foot.text(26, 70, f"等额本息\n{COPY_METRICS['equal_interest_monthly_label']}",
                  fontsize=BODY_FONT_SIZE, color=EI_BLUE, ha='center', va='center',
                  alpha=a1, zorder=6, linespacing=BODY_LINE_HEIGHT)
-    ax_foot.text(74, 70, f'等额本金\n{EP_FIRST_MONTH:.0f}元（首月）\n{EP_LAST_MONTH:.0f}元（末月）',
+    ax_foot.text(74, 70, f"等额本金\n{COPY_METRICS['equal_principal_monthly_label']}",
                  fontsize=BODY_FONT_SIZE, color=EP_ORANGE, ha='center', va='center',
                  alpha=a1, zorder=6, linespacing=BODY_LINE_HEIGHT)
     ax_foot.text(50, 35, ACCENT_LABEL,

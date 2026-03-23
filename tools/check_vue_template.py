@@ -54,7 +54,7 @@ IGNORE_METHODS: set[str] = {
     # Common attribute/property names
     "name", "type", "label", "title", "icon",
     # CSS class name keys used in :class binding objects
-    "show", "active", "collapsed", "disabled", "hidden", "checked",
+    "show", "active", "collapsed", "disabled", "hidden", "checked", "spin",
     # $event shorthand
     "event",
     # Global JS built-ins

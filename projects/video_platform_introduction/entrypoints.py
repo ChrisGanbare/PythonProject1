@@ -30,7 +30,7 @@ def _manim_available() -> bool:
 
 
 def run_intro_video(
-    quality: str = "preview",
+    quality: str = "draft",
     preview: bool = False,
     platform: str = "douyin",
     style: str = "tech",
@@ -54,7 +54,7 @@ def run_intro_video(
         topic: Optional topic label for output metadata.
         screenplay: Optional confirmed screenplay from the dashboard workflow.
     """
-    del platform, style, video_duration
+    del style
 
     current_dir = Path(__file__).parent
     output_dir = current_dir.parent.parent / "runtime" / "outputs" / "video_platform_introduction"
@@ -64,7 +64,13 @@ def run_intro_video(
         # ---- matplotlib fallback ----
         print("[video_platform_introduction] Manim 未安装，使用 matplotlib 渲染器作为替代。")
         from .renderer.intro_matplotlib import render_intro_matplotlib
-        video_file = render_intro_matplotlib(output_dir, quality=quality, screenplay=screenplay)
+        video_file = render_intro_matplotlib(
+            output_dir,
+            quality=quality,
+            screenplay=screenplay,
+            platform=platform,
+            video_duration=video_duration,
+        )
         return {
             "status": "success",
             "message": "Video rendered successfully (matplotlib fallback — Manim not installed)",
@@ -136,12 +142,15 @@ def run_intro_video(
                 print(f"Warning: Failed to remove temp file {temp_json_path}: {e}")
 
     quality_folder_map = {
+        "preview": "480p15",
+        "draft": "720p30",
+        "final": "1080p60",
         "low": "480p15",
         "medium": "720p30",
         "high": "1080p60",
         "4k": "2160p60",
     }
-    q_folder = quality_folder_map.get(quality, "480p15")
+    q_folder = quality_folder_map.get(quality, quality_folder_map["draft"])
     video_file = output_dir / "videos" / "intro_scene" / q_folder / "IntroductionScene.mp4"
 
     return {

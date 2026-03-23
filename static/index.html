@@ -179,8 +179,11 @@
             <div class="studio-agent-panel flex-grow-1 d-flex flex-column min-h-0 px-3 pb-2">
               <p class="text-muted small mb-2 flex-shrink-0 sidebar-micro-hint">每次只能有一个进行中的会话。完成后可编辑标题或删除。</p>
               <div class="d-flex flex-wrap gap-1 mb-2 align-items-center flex-shrink-0">
-                <button type="button" class="btn btn-sm btn-outline-secondary" title="刷新会话列表" @click="fetchStudioSessions">
-                  <i class="bi bi-arrow-clockwise"></i>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                  :disabled="studioSessionsLoading"
+                  :title="studioSessionsLoading ? '刷新中…' : '刷新会话列表'"
+                  @click="fetchStudioSessions">
+                  <i class="bi" :class="studioSessionsLoading ? 'bi-arrow-clockwise spin' : 'bi-arrow-clockwise'"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-primary flex-grow-1"
                   :disabled="hasActiveStudioSession"
@@ -205,7 +208,7 @@
               <div v-if="studioSessionsLoading" class="text-muted small py-1 flex-shrink-0">加载会话…</div>
               <div v-else class="studio-session-list-scroll">
                 <p v-if="studioSessions.length === 0 && !studioSessionsSoftNotice" class="text-muted small mb-0">
-                  暂无会话。填写自然语言后右侧自动编译会生成会话，或点上方「新建会话」手动创建。
+                  暂无会话，点击「新建会话」开始。
                 </p>
                 <div
                   v-for="s in studioSessions"
@@ -240,10 +243,15 @@
                 <div class="d-flex justify-content-between align-items-center mb-1 flex-shrink-0">
                   <span class="small fw-bold text-secondary"><i class="bi bi-clock-history me-1"></i>编译历史</span>
                   <div class="d-flex gap-1">
-                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted" @click="refreshStudioSessionDetail" title="刷新">
-                      <i class="bi bi-arrow-clockwise" style="font-size:0.8rem"></i>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted"
+                      :disabled="studioSessionDetailLoading"
+                      @click="refreshStudioSessionDetail" title="刷新">
+                      <i class="bi bi-arrow-clockwise" :class="{ spin: studioSessionDetailLoading }" style="font-size:0.8rem"></i>
                     </button>
-                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @click="clearStudioSessionSelection">关闭</button>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                      :disabled="agentCompiling || agentRunning"
+                      :title="(agentCompiling || agentRunning) ? '进行中…' : ''"
+                      @click="clearStudioSessionSelection">关闭</button>
                   </div>
                 </div>
                 <div v-if="studioSessionDetailLoading" class="text-muted small">加载详情…</div>
@@ -422,23 +430,30 @@
           <!-- ── AI Agent Panel ── -->
           <div v-if="agentMode" class="container-fluid p-4" style="max-width: 900px; margin: 0 auto;">
 
+            <!-- 空状态：未选中会话 -->
+            <div v-if="!selectedStudioSessionId" class="alert alert-light border d-flex align-items-center gap-2 py-3 small text-muted">
+              <i class="bi bi-info-circle fs-5"></i>
+              <span>在左侧新建或选中一个会话，即可开始 AI 意图编译。</span>
+            </div>
+
+            <!-- 已选会话：完整编译区 -->
+            <template v-if="selectedStudioSessionId">
+
             <!-- 当前会话上下文提示条 -->
-            <div v-if="selectedStudioSessionId" class="alert alert-primary d-flex align-items-center justify-content-between gap-3 mb-4 py-2">
+            <div class="alert alert-primary d-flex align-items-center justify-content-between gap-3 mb-4 py-2">
               <div class="d-flex align-items-center gap-2 small">
                 <i class="bi bi-chat-dots-fill"></i>
-                <span>已关联会话 <code class="small">{{ selectedStudioSessionId.slice(0, 8) }}…</code>
+                <span>会话 <code class="small">{{ selectedStudioSessionId.slice(0, 8) }}…</code>
                   <span v-if="studioSessionDetail && studioSessionDetail.title" class="ms-1 fw-semibold">「{{ studioSessionDetail.title }}」</span>
-                  — 编译时自动持久化轮次；AI 可参考你的上次意图
                 </span>
               </div>
               <div class="d-flex gap-2 flex-shrink-0">
                 <button v-if="lastCompiledTemplate()" type="button" class="btn btn-sm btn-outline-primary py-0" @click="loadLastCompiledTemplate">载入上次结果</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary py-0" @click="clearStudioSessionSelection">取消关联</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                  :disabled="agentCompiling || agentRunning"
+                  :title="(agentCompiling || agentRunning) ? '编译/渲染进行中，无法切换会话' : '切换到其他会话'"
+                  @click="clearStudioSessionSelection">切换会话</button>
               </div>
-            </div>
-            <div v-else class="alert alert-light border d-flex align-items-center gap-2 mb-4 py-2 small text-muted">
-              <i class="bi bi-info-circle"></i>
-              切换左侧至「意图会话」并新建或选中一个会话，可开启多轮对话 + 历史持久化。
             </div>
 
             <!-- AI 未配置警告 -->
@@ -602,6 +617,8 @@
                 <p class="text-muted small mb-0">请查看终端日志获取详情，可调整参数后重新编译运行。</p>
               </div>
             </div>
+
+            </template><!-- end selectedStudioSessionId -->
 
           </div><!-- end agentMode -->
 

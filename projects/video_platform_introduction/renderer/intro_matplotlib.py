@@ -6,8 +6,8 @@ any external dependencies beyond matplotlib and ffmpeg.
 
 from __future__ import annotations
 
+import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,11 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.figure import Figure
 import numpy as np
+
+from shared.config.settings import get_quality_preset
+from shared.content.typography import apply_matplotlib_typography
+from shared.platform.presets import get_platform_preset
+from shared.visualization.render_cache import render_cache_dir
 
 
 # ---------------------------------------------------------------------------
@@ -120,9 +125,11 @@ def _slide_closing(fig: Figure, text: str) -> None:
 
 def render_intro_matplotlib(
     output_dir: Path,
-    quality: str = "preview",
+    quality: str = "draft",
     screenplay: dict[str, Any] | None = None,
     *,
+    platform: str = "douyin",
+    video_duration: int = 30,
     fps: int | None = None,
 ) -> Path:
     """
@@ -164,34 +171,47 @@ def render_intro_matplotlib(
             conclusion_text = last_text[:20] if last_text else conclusion_text
 
     # ---- quality presets ----
-    quality_settings: dict[str, dict] = {
-        "preview": {"width": 1920, "height": 1080, "dpi": 72, "fps": 15, "hold_s": 2.5},
-        "draft":   {"width": 1920, "height": 1080, "dpi": 96, "fps": 30, "hold_s": 3.0},
-        "final":   {"width": 1920, "height": 1080, "dpi": 144, "fps": 60, "hold_s": 4.0},
-        # legacy aliases
-        "low":    {"width": 1920, "height": 1080, "dpi": 72, "fps": 15, "hold_s": 2.5},
-        "medium": {"width": 1920, "height": 1080, "dpi": 96, "fps": 30, "hold_s": 3.0},
-        "high":   {"width": 1920, "height": 1080, "dpi": 144, "fps": 60, "hold_s": 4.0},
+    quality_aliases = {
+        "low": "preview",
+        "medium": "draft",
+        "high": "final",
     }
-    qs = quality_settings.get(quality, quality_settings["preview"])
-    if fps is not None:
-        qs = dict(qs, fps=fps)
+    resolved_quality = quality_aliases.get(quality, quality)
+    quality_preset = get_quality_preset(resolved_quality)
+    platform_preset = get_platform_preset(platform)
+    apply_matplotlib_typography()
 
-    w, h, dpi = qs["width"], qs["height"], qs["dpi"]
-    hold_s: float = qs["hold_s"]
-    out_fps: int = qs["fps"]
+    w = platform_preset.width
+    h = platform_preset.height
+    dpi = int(quality_preset["dpi"])
+    out_fps = int(fps or platform_preset.fps)
+    total_duration = max(float(video_duration), 6.0)
+    slide_durations = [total_duration * 0.32, total_duration * 0.38, total_duration * 0.30]
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    frames_dir = output_dir / "frames_mpl"
-    frames_dir.mkdir(exist_ok=True)
+    fingerprint_payload = {
+        "platform": platform_preset.name,
+        "quality": resolved_quality,
+        "video_duration": int(video_duration),
+        "fps": out_fps,
+        "title": title_text,
+        "subtitle": subtitle_text,
+        "features": features_list,
+        "conclusion": conclusion_text,
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(fingerprint_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    frames_dir = render_cache_dir("video_platform_introduction", fingerprint)
+    frames_dir.mkdir(parents=True, exist_ok=True)
 
     fig = _make_fig(w, h, dpi)
 
     # Each slide: (builder_fn, *args), hold_seconds
     slides: list[tuple[Any, float]] = [
-        ((_slide_title, fig, title_text, subtitle_text), hold_s),
-        ((_slide_features, fig, "核心功能", features_list), hold_s),
-        ((_slide_closing, fig, conclusion_text), hold_s * 0.8),
+        ((_slide_title, fig, title_text, subtitle_text), slide_durations[0]),
+        ((_slide_features, fig, "核心功能", features_list), slide_durations[1]),
+        ((_slide_closing, fig, conclusion_text), slide_durations[2]),
     ]
 
     # Render frames
@@ -199,37 +219,58 @@ def render_intro_matplotlib(
     for (builder_args, duration) in slides:
         fn, *args = builder_args
         fn(*args)
-        n_frames = max(1, int(duration * out_fps))
+        n_frames = max(1, int(round(duration * out_fps)))
         for _ in range(n_frames):
             frame_path = frames_dir / f"frame_{frame_idx:05d}.png"
-            fig.savefig(str(frame_path), dpi=dpi, facecolor=_BG_COLOR)
+            if not frame_path.exists():
+                fig.savefig(str(frame_path), dpi=dpi, facecolor=_BG_COLOR, pad_inches=0)
             frame_idx += 1
 
     plt.close(fig)
 
     # Assemble with ffmpeg
-    output_video = output_dir / "IntroductionScene_mpl.mp4"
-    _ffmpeg_assemble(frames_dir, output_video, out_fps)
-
-    # Cleanup frames
-    import shutil
-    shutil.rmtree(frames_dir, ignore_errors=True)
+    output_video = output_dir / f"IntroductionScene_{platform_preset.name}_{resolved_quality}.mp4"
+    _ffmpeg_assemble(
+        frames_dir,
+        output_video,
+        out_fps,
+        width=w,
+        height=h,
+        bitrate=int(quality_preset["bitrate"]),
+        preset=str(quality_preset["preset"]),
+        crf=int(quality_preset["crf"]),
+    )
 
     return output_video
 
 
-def _ffmpeg_assemble(frames_dir: Path, output: Path, fps: int) -> None:
+def _ffmpeg_assemble(
+    frames_dir: Path,
+    output: Path,
+    fps: int,
+    *,
+    width: int,
+    height: int,
+    bitrate: int,
+    preset: str,
+    crf: int,
+) -> None:
     import subprocess
-    import sys
 
     pattern = str(frames_dir / "frame_%05d.png")
     cmd = [
         "ffmpeg", "-y",
+        "-hide_banner",
+        "-loglevel", "error",
         "-framerate", str(fps),
         "-i", pattern,
         "-c:v", "libx264",
+        "-preset", preset,
+        "-b:v", f"{bitrate}k",
+        "-vf", f"scale={width}:{height}:flags=lanczos,format=yuv420p",
         "-pix_fmt", "yuv420p",
-        "-crf", "23",
+        "-crf", str(crf),
+        "-movflags", "+faststart",
         str(output),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)

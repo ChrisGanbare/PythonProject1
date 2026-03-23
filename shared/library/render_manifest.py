@@ -20,6 +20,7 @@ _VIDEO_KEYS_FOR_FINGERPRINT = (
     "bitrate",
     "crf",
     "preset",
+    "renderer_revision",
 )
 
 

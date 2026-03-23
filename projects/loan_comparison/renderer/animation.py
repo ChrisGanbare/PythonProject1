@@ -239,6 +239,7 @@ def generate_loan_animation(
             "bitrate": int(_qp["bitrate"]),
             "preset": str(_qp["preset"]),
             "crf": int(_qp["crf"]),
+            "renderer_revision": 3,
         }
     else:
         _vid_fp = {
@@ -250,6 +251,7 @@ def generate_loan_animation(
             "bitrate": int(settings.video.bitrate),
             "preset": str(settings.video.preset),
             "crf": int(settings.video.crf),
+            "renderer_revision": 3,
         }
     _loan_data = LoanData(
         loan_amount=effective_loan_amount,

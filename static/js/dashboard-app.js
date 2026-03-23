@@ -520,6 +520,14 @@ const { createApp, computed } = Vue;
                 throw new Error(msg);
               }
               this.studioSessions = data.items || [];
+              // 刷新后检验当前选中会话是否仍在列表中，否则清除选中状态
+              if (this.selectedStudioSessionId) {
+                const stillExists = this.studioSessions.some(s => s.id === this.selectedStudioSessionId);
+                if (!stillExists) {
+                  this.selectedStudioSessionId = null;
+                  this.studioSessionDetail = null;
+                }
+              }
             } catch (err) {
               this.studioSessionsError = err.message || String(err);
               this.studioSessions = [];
@@ -640,6 +648,17 @@ const { createApp, computed } = Vue;
             this.selectedStudioSessionId = null;
             this.studioSessionDetail = null;
             this.deleteConfirmSessionId = null;
+            // 切换会话时同步清除编译面板状态，避免旧会话的结果出现在新会话中
+            // 保留 agentPrompt，方便用户在新会话中复用输入
+            this.agentCompiledResult = null;
+            this.agentEditedKwargs = {};
+            this.agentCompileError = null;
+            this.agentJobSuccess = false;
+            this.agentJobFailure = null;
+            this.agentJobResult = null;
+            this.agentJobId = null;
+            this.agentLogs = [];
+            this.agentLinkedSessionId = null;
           },
           /** 批量清理所有未完成（残余）会话：先 complete 再 delete */
           async cleanupStaleSessions() {
@@ -1575,8 +1594,8 @@ const { createApp, computed } = Vue;
                 this.agentLogs.push(`📋 任务参数：${data.task_parameters.map(p => p.name).join(', ')}`);
               }
               (data.warnings || []).forEach(w => this.agentLogs.push(`⚠️ ${w}`));
-              // 编译成功后刷新侧栏会话详情
-              if (sessionId) {
+              // 编译成功后刷新侧栏会话详情；若用户已切换会话则不强制重选
+              if (sessionId && this.selectedStudioSessionId === sessionId) {
                 await this.selectStudioSession(sessionId);
               }
             } catch (err) {
@@ -1592,21 +1611,6 @@ const { createApp, computed } = Vue;
             if (this.running && this.currentProject === this.agentCompiledResult.project) {
               this.agentLogs.push('⚠️ 项目与任务面板正在渲染同一项目，请等待完成后再试');
               return;
-            }
-            
-            // 如果未选中会话：优先复用现有活跃会话，无活跃会话才新建
-            if (!this.selectedStudioSessionId) {
-              const activeSession = this.studioSessions.find(s => s.is_completed === false);
-              if (activeSession) {
-                await this.selectStudioSession(activeSession.id);
-                this.agentLogs.push(`🗂 已自动关联现有活跃会话 ${activeSession.id.slice(0, 8)}…`);
-              } else {
-                try {
-                  await this.createStudioSession();
-                } catch (e) {
-                  this.agentLogs.push(`⚠️ 创建会话失败，继续不关联会话运行`);
-                }
-              }
             }
             
             this.agentRunning = true;
@@ -1667,6 +1671,10 @@ const { createApp, computed } = Vue;
                         method: 'POST'
                       });
                       await this.fetchStudioSessions();  // 刷新列表以更新 is_completed 状态
+                      // 若用户当前仍在此会话，同步刷新 turns
+                      if (this.selectedStudioSessionId === this.agentLinkedSessionId) {
+                        await this.refreshStudioSessionDetail();
+                      }
                     } catch (e) {
                       console.error('Failed to mark session as completed:', e);
                     }

@@ -14,8 +14,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 QUALITY_PRESETS: dict[str, dict[str, int | str]] = {
     "preview": {"dpi": 72, "bitrate": 4000, "preset": "veryfast", "crf": 28},
-    "draft": {"dpi": 108, "bitrate": 6000, "preset": "medium", "crf": 23},
-    "final": {"dpi": 144, "bitrate": 8000, "preset": "slow", "crf": 18},
+    "draft": {"dpi": 108, "bitrate": 8000, "preset": "faster", "crf": 21},
+    "final": {"dpi": 144, "bitrate": 14000, "preset": "medium", "crf": 17},
 }
 
 
@@ -67,13 +67,13 @@ def _expand_nested_kwargs(raw_data: dict[str, Any]) -> dict[str, Any]:
 class VideoConfig(BaseModel):
     width: int = Field(default=1080, description="Video width in px")
     height: int = Field(default=1920, description="Video height in px")
-    dpi: int = Field(default=100, description="Render DPI")
+    dpi: int = Field(default=108, description="Render DPI")
     fps: int = Field(default=30, description="Frames per second")
     total_duration: int = Field(default=30, description="Total duration in seconds")
     codec: str = Field(default="libx264", description="Video codec")
     bitrate: int = Field(default=8000, description="Video bitrate kbps")
-    preset: str = Field(default="medium", description="ffmpeg preset")
-    crf: int = Field(default=20, description="Constant rate factor")
+    preset: str = Field(default="faster", description="ffmpeg preset")
+    crf: int = Field(default=21, description="Constant rate factor")
     pix_fmt: str = Field(default="yuv420p", description="Pixel format")
     output_dir: Path = Field(default_factory=lambda: _runtime_root() / "outputs")
 

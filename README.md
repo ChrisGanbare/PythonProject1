@@ -23,23 +23,29 @@ cd PythonProject1
 pip install -r requirements.txt
 ```
 
-### 2. 运行演示
+### 2. 使用主入口启动程序
 
 ```bash
-# 端到端演示
-python demo_e2e.py
+# 启动 API 服务
+python start.py api
 
-# API 与平台演示
-python demo_api.py
+# 运行演示
+python start.py demo
 
-# CLI 演示
-python -m cli.video demo
+# CLI 工具
+python start.py cli list-templates
+
+# 查看帮助
+python start.py --help
 ```
 
 ### 3. 启动 API 服务
 
 ```bash
-# 启动 API 服务器
+# 方式 1: 使用 start.py (推荐)
+python start.py api
+
+# 方式 2: 直接启动
 python -m api.main --port 8000
 
 # 访问 API 文档

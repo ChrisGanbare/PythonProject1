@@ -153,11 +153,19 @@
                 <div class="chat-message ai">
                     <div class="message-bubble">
                         <div>你好！我是你的视频生成助手。请告诉我你想要创建什么样的视频？</div>
-                        <div class="mt-2 text-muted small">
-                            例如：<br>
-                            • "帮我创建一个柱状图竞赛视频，展示 2024 年各月销售额"<br>
-                            • "生成一个折线图，展示产品趋势分析"<br>
-                            • "创建一个散点图，分析用户行为相关性"
+                        <div class="mt-3 pt-3 border-top">
+                            <label class="form-label fw-bold small text-muted mb-2">快速建议：</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-outline-primary btn-sm" @click="useSuggestion('柱状图竞赛')">
+                                    📊 柱状图竞赛
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" @click="useSuggestion('动态折线图')">
+                                    📈 动态折线图
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" @click="useSuggestion('散点图分析')">
+                                    🔍 散点图分析
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

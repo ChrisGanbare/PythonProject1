@@ -230,7 +230,16 @@ app = FastAPI(title="Video Project Control Center", lifespan=lifespan)
 STATIC_DIR = REPO_ROOT / "static"
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
+# Register v1 API
 app.include_router(create_v1_router(lambda: registry), prefix="/api/v1")
+
+# Register v2 API (quick video creation)
+try:
+    from api.v2_routes import router as v2_router
+    app.include_router(v2_router)
+    logger.info("v2 API routes registered")
+except Exception as e:
+    logger.warning(f"Failed to register v2 API routes: {e}")
 
 
 # --- API Models ---

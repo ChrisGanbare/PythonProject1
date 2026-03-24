@@ -510,28 +510,77 @@
                     }
                     return '已上传文件'
                 },
-                startGeneration() {
+                async startGeneration() {
                     this.isGenerating = true
                     this.videoGenerated = false
                     this.generateProgress = 0
+                    this.generatingMessage = '准备提交...'
                     
-                    // 模拟生成进度
-                    const interval = setInterval(() => {
-                        this.generateProgress += 10
-                        if (this.generateProgress === 30) {
-                            this.generatingMessage = '渲染图表中...'
-                        } else if (this.generateProgress === 60) {
-                            this.generatingMessage = '合成视频中...'
-                        } else if (this.generateProgress === 90) {
-                            this.generatingMessage = '最后处理...'
+                    try {
+                        // 构建请求数据
+                        const requestData = {
+                            template: {
+                                template_id: this.selectedTemplate,
+                                template_name: this.getTemplateName(this.selectedTemplate)
+                            },
+                            data: {
+                                input_mode: this.dataInputMode,
+                                labels: this.manualData.labels,
+                                values: this.manualData.values,
+                                series_name: this.manualData.seriesName
+                            },
+                            brand: {
+                                brand_id: this.selectedBrand
+                            },
+                            platform: 'bilibili'
                         }
                         
-                        if (this.generateProgress >= 100) {
-                            clearInterval(interval)
-                            this.isGenerating = false
-                            this.videoGenerated = true
+                        // 调用 API 创建视频
+                        this.generatingMessage = '提交请求...'
+                        const createRes = await fetch('/api/v2/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestData)
+                        })
+                        
+                        if (!createRes.ok) {
+                            throw new Error('创建失败')
                         }
-                    }, 500)
+                        
+                        const createData = await createRes.json()
+                        const jobId = createData.job_id
+                        
+                        // 轮询查询状态
+                        this.generatingMessage = '等待响应...'
+                        const pollInterval = setInterval(async () => {
+                            const statusRes = await fetch(`/api/v2/status/${jobId}`)
+                            const statusData = await statusRes.json()
+                            
+                            this.generateProgress = statusData.progress
+                            this.generatingMessage = statusData.message
+                            
+                            if (statusData.status === 'completed') {
+                                clearInterval(pollInterval)
+                                this.isGenerating = false
+                                this.videoGenerated = true
+                                // 添加到最近视频
+                                this.recentVideos.unshift({
+                                    id: jobId,
+                                    name: this.getTemplateName(this.selectedTemplate),
+                                    date: new Date().toLocaleString('zh-CN')
+                                })
+                            } else if (statusData.status === 'failed') {
+                                clearInterval(pollInterval)
+                                this.isGenerating = false
+                                alert('生成失败：' + statusData.error)
+                            }
+                        }, 1000)
+                        
+                    } catch (e) {
+                        console.error(e)
+                        this.isGenerating = false
+                        alert('生成失败：' + e.message)
+                    }
                 },
                 reset() {
                     this.currentStep = 1

@@ -168,7 +168,7 @@
                 <!-- User Messages -->
                 <div class="chat-message user" v-for="(msg, index) in messages" :key="index">
                     <div class="message-bubble">
-                        <div>{{ msg.content }}</div>
+                        <div v-text="msg.content"></div>
                     </div>
                 </div>
 

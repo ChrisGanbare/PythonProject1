@@ -76,7 +76,8 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dashboard")
 
-REPO_ROOT = Path(__file__).resolve().parent
+# 修复：REPO_ROOT 应该是项目根目录，而不是 scripts 目录
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Ensure projects directory is in python path
 sys.path.append(str(REPO_ROOT / "projects"))

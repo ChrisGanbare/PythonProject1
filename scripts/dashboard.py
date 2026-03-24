@@ -16,6 +16,11 @@ from contextlib import asynccontextmanager, suppress as contextlib_suppress
 from pathlib import Path
 from typing import Any
 
+# 添加项目根目录到 Python 路径
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse

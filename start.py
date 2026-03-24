@@ -36,6 +36,12 @@ def print_banner():
     print(" PythonProject1 - 数据可视化视频生成平台 v2.2")
     print("="*70)
     print()
+    print("快速开始:")
+    print("  python start.py api        - 启动 API 服务")
+    print("  python start.py dashboard  - 启动 Web 控制台")
+    print("  python start.py demo       - 运行演示")
+    print("  python start.py --help     - 查看帮助")
+    print()
 
 
 def cmd_api(args):
@@ -78,7 +84,19 @@ def cmd_demo(args):
     
     # 执行演示
     import subprocess
-    subprocess.run([sys.executable, demo_file])
+    subprocess.run([sys.executable, "demos/" + demo_file])
+
+
+def cmd_dashboard(args):
+    """启动 Dashboard 控制台"""
+    print("启动 Dashboard 控制台...")
+    print("访问地址：http://localhost:8090")
+    print()
+    
+    # 导入并运行 dashboard
+    sys.path.insert(0, str(Path(__file__).parent))
+    from scripts.dashboard import main as dashboard_main
+    dashboard_main()
 
 
 def cmd_cli(args):
@@ -200,6 +218,10 @@ def main():
     # Status 命令
     status_parser = subparsers.add_parser("status", help="显示项目状态")
     status_parser.set_defaults(func=cmd_status)
+    
+    # Dashboard 命令
+    dashboard_parser = subparsers.add_parser("dashboard", help="启动 Dashboard 控制台")
+    dashboard_parser.set_defaults(func=cmd_dashboard)
     
     # 解析参数
     args = parser.parse_args()

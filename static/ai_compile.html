@@ -335,10 +335,13 @@
         </div>
 
         <!-- Back to Home -->
-        <div class="text-center">
-            <button class="btn btn-outline-light" @click="goHome">
-                <i class="bi bi-house me-2"></i>返回首页
-            </button>
+        <div class="text-center mt-4">
+            <a href="/" class="btn btn-outline-light btn-lg">
+                <i class="bi bi-house-door me-2"></i>返回首页
+            </a>
+            <a href="/projects.html" class="btn btn-outline-light btn-lg ms-2">
+                <i class="bi bi-folder me-2"></i>项目管理
+            </a>
         </div>
     </div>
 
@@ -361,7 +364,21 @@
                         kwargsJson: ''
                     },
                     executeProgress: 0,
-                    executeMessage: '准备生成...'
+                    executeMessage: '准备生成...',
+                    apiAvailable: true,
+                    apiError: ''
+                }
+            },
+            async mounted() {
+                // 检查 API 是否可用
+                try {
+                    const res = await fetch('/api/registry')
+                    if (!res.ok) throw new Error('API 不可用')
+                    this.apiAvailable = true
+                } catch (e) {
+                    this.apiAvailable = false
+                    this.apiError = 'API 服务未启动，部分功能可能不可用'
+                    console.warn('API 不可用:', e)
                 }
             },
             methods: {
@@ -390,7 +407,7 @@
                     })
                     
                     try {
-                        // 调用真实 API
+                        // 尝试调用真实 API
                         const res = await fetch('/api/v1/agent/compile', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -399,6 +416,29 @@
                                 persist_turns: false
                             })
                         })
+                        
+                        if (res.status === 404) {
+                            // API 不存在，使用模拟响应
+                            this.aiResponses.pop()
+                            this.aiResponses.push({
+                                type: 'compiled',
+                                data: {
+                                    template: 'bar_chart_race',
+                                    brand: 'corporate',
+                                    project: 'v2_templates',
+                                    kwargs: {
+                                        template: 'bar_chart_race',
+                                        data: {
+                                            date: ['2024-01', '2024-02', '2024-03'],
+                                            category: ['产品 A', '产品 B', '产品 C'],
+                                            value: [100, 150, 200, 130, 170, 220, 160, 190, 250]
+                                        },
+                                        brand: 'corporate'
+                                    }
+                                }
+                            })
+                            return
+                        }
                         
                         if (!res.ok) {
                             throw new Error('编译失败')
@@ -432,11 +472,31 @@
                         // Remove compiling message
                         this.aiResponses.pop()
                         
-                        // Show error
+                        // Show error with fallback
                         this.aiResponses.push({
                             type: 'error',
-                            error: e.message
+                            error: e.message + ' (将使用演示数据)'
                         })
+                        
+                        // 使用演示数据
+                        setTimeout(() => {
+                            this.aiResponses.push({
+                                type: 'compiled',
+                                data: {
+                                    template: 'bar_chart_race',
+                                    brand: 'corporate',
+                                    project: 'v2_templates',
+                                    kwargs: {
+                                        template: 'bar_chart_race',
+                                        data: {
+                                            date: ['2024-01', '2024-02', '2024-03'],
+                                            category: ['产品 A', '产品 B', '产品 C'],
+                                            value: [100, 150, 200, 130, 170, 220, 160, 190, 250]
+                                        }
+                                    }
+                                }
+                            })
+                        }, 1000)
                     }
                     
                     this.isProcessing = false

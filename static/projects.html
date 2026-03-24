@@ -70,7 +70,18 @@
                 <i class="bi bi-folder2-open me-3"></i>
                 项目管理
             </h1>
-            <p class="lead mb-0">管理所有子项目和任务执行历史</p>
+            <p class="lead mb-3">管理所有子项目和任务执行历史</p>
+            
+            <!-- 快速引导 -->
+            <div class="alert alert-light text-start d-inline-block" style="max-width: 600px;">
+                <h6 class="fw-bold"><i class="bi bi-lightbulb me-2 text-warning"></i>快速开始</h6>
+                <ol class="mb-0 small">
+                    <li><strong>推荐项目</strong>: 点击 <span class="badge bg-success">推荐</span> 标记的项目 (如 v2_templates)</li>
+                    <li><strong>执行任务</strong>: 点击项目卡片上的"执行"按钮</li>
+                    <li><strong>查看历史</strong>: 在下方查看执行历史和下载视频</li>
+                    <li><strong>新建项目</strong>: 点击右上角"新建项目"创建自定义项目</li>
+                </ol>
+            </div>
         </div>
 
         <!-- Create Project Button -->
@@ -163,10 +174,16 @@
         </div>
 
         <!-- Back to Home -->
-        <div class="text-center">
-            <button class="btn btn-outline-light btn-lg" @click="goHome">
-                <i class="bi bi-house me-2"></i>返回首页
-            </button>
+        <div class="text-center mt-4">
+            <a href="/" class="btn btn-outline-light btn-lg">
+                <i class="bi bi-house-door me-2"></i>返回首页
+            </a>
+            <a href="/ai_compile.html" class="btn btn-outline-light btn-lg ms-2">
+                <i class="bi bi-chat-dots me-2"></i>AI 意图编译
+            </a>
+            <a href="/code_studio.html" class="btn btn-outline-light btn-lg ms-2">
+                <i class="bi bi-code-slash me-2"></i>代码工坊
+            </a>
         </div>
 
         <!-- Create Project Modal -->
@@ -228,6 +245,14 @@
             mounted() {
                 this.fetchProjects()
                 this.fetchExecutionHistory()
+            },
+            computed: {
+                recommendedProjects() {
+                    return this.projects.filter(p => p.recommended)
+                },
+                otherProjects() {
+                    return this.projects.filter(p => !p.recommended)
+                }
             },
             methods: {
                 async fetchProjects() {

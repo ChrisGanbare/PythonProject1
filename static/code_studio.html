@@ -125,6 +125,18 @@
             <!-- Right: Code Editor -->
             <div class="col-md-9">
                 <div class="main-card">
+                    <!-- 引导提示 -->
+                    <div class="alert alert-info mb-4" v-if="!selectedFile">
+                        <h6 class="fw-bold"><i class="bi bi-info-circle me-2"></i>如何使用代码工坊</h6>
+                        <ol class="mb-0 small">
+                            <li><strong>选择项目</strong>: 从左侧选择要编辑的项目</li>
+                            <li><strong>选择文件</strong>: 点击要编辑的代码文件</li>
+                            <li><strong>AI 生成代码</strong>: 描述你的需求，AI 会自动生成代码</li>
+                            <li><strong>查看差异</strong>: 对比新旧代码，确认修改</li>
+                            <li><strong>写入磁盘</strong>: 保存修改到文件</li>
+                        </ol>
+                    </div>
+                    
                     <!-- Toolbar -->
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
@@ -207,10 +219,13 @@
         </div>
 
         <!-- Back to Home -->
-        <div class="text-center">
-            <button class="btn btn-outline-light" @click="goHome">
-                <i class="bi bi-house me-2"></i>返回首页
-            </button>
+        <div class="text-center mt-4">
+            <a href="/" class="btn btn-outline-light btn-lg">
+                <i class="bi bi-house-door me-2"></i>返回首页
+            </a>
+            <a href="/projects.html" class="btn btn-outline-light btn-lg ms-2">
+                <i class="bi bi-folder me-2"></i>项目管理
+            </a>
         </div>
     </div>
 

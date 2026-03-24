@@ -264,16 +264,20 @@
                 async fetchTemplates() {
                     try {
                         const res = await fetch('/api/v1/templates')
+                        if (!res.ok) throw new Error('API not available')
                         this.templates = await res.json()
                     } catch (e) {
+                        console.log('使用默认模板列表')
                         this.templates = ['bar_chart_race', 'line_chart_animated', 'scatter_plot_dynamic', 'area_chart_stacked', 'bubble_chart', 'bar_chart_horizontal']
                     }
                 },
                 async fetchThemes() {
                     try {
                         const res = await fetch('/api/v1/themes')
+                        if (!res.ok) throw new Error('API not available')
                         this.themes = await res.json()
                     } catch (e) {
+                        console.log('使用默认主题列表')
                         this.themes = ['default', 'corporate', 'minimalist', 'vibrant', 'new_york_times', 'financial_times']
                     }
                 },

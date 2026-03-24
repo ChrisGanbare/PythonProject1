@@ -420,6 +420,44 @@ async def read_v2_index():
     return FileResponse(v2_path)
 
 
+@app.get("/ai_compile.html")
+async def read_ai_compile():
+    """访问 AI 意图编译页面"""
+    path = STATIC_DIR / "ai_compile.html"
+    if not path.exists():
+        return JSONResponse({"error": "Page not found"}, status_code=404)
+    return FileResponse(path)
+
+
+@app.get("/projects.html")
+async def read_projects():
+    """访问项目管理页面"""
+    path = STATIC_DIR / "projects.html"
+    if not path.exists():
+        return JSONResponse({"error": "Page not found"}, status_code=404)
+    return FileResponse(path)
+
+
+@app.get("/code_studio.html")
+async def read_code_studio():
+    """访问代码工坊页面"""
+    path = STATIC_DIR / "code_studio.html"
+    if not path.exists():
+        return JSONResponse({"error": "Page not found"}, status_code=404)
+    return FileResponse(path)
+
+
+@app.get("/classic")
+async def read_classic():
+    """访问旧版 Dashboard"""
+    path = STATIC_DIR / "index_old.html"
+    if not path.exists():
+        path = STATIC_DIR / "index.html"
+    if not path.exists():
+        return JSONResponse({"error": "Frontend not found"}, status_code=404)
+    return FileResponse(path)
+
+
 @app.get("/api/registry")
 async def get_registry():
     """List all discovered projects and their tasks."""

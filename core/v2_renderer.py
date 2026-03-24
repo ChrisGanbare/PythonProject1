@@ -33,6 +33,19 @@ def render_v2_template(
     Returns:
         输出文件路径
     """
+    """
+    使用 v2.2 模板引擎渲染视频
+    
+    Args:
+        template_name: 模板名称 (bar_chart_race, line_chart_animated 等)
+        data: 图表数据
+        brand: 品牌主题名称
+        platform: 目标平台
+        output_path: 输出路径
+        
+    Returns:
+        输出文件路径
+    """
     from core.templates import get_template
     from core.data.sources import InlineDataSource
     from core.brand import get_theme

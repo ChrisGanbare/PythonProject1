@@ -100,7 +100,7 @@ class BarChartRaceTemplate(VideoTemplate):
                     ).tolist()
                 },
                 "config": {
-                    "orientation": "horizontal",
+                    "orientation": "h",
                     "show_labels": True,
                     "show_values": True,
                     "sort_by": "value",

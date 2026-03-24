@@ -152,9 +152,6 @@
                 <!-- Welcome Message -->
                 <div class="chat-message ai">
                     <div class="message-bubble">
-                        <div class="fw-bold mb-2">
-                            <i class="bi bi-robot me-2"></i>AI 助手
-                        </div>
                         <div>你好！我是你的视频生成助手。请告诉我你想要创建什么样的视频？</div>
                         <div class="mt-2 text-muted small">
                             例如：<br>
@@ -175,9 +172,6 @@
                 <!-- AI Responses -->
                 <div class="chat-message ai" v-for="(msg, index) in aiResponses" :key="index">
                     <div class="message-bubble">
-                        <div class="fw-bold mb-2">
-                            <i class="bi bi-robot me-2"></i>AI 助手
-                        </div>
                         
                         <!-- Step 1: 编译中 -->
                         <div v-if="msg.type === 'compiling'">

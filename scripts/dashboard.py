@@ -391,9 +391,28 @@ def _load_screenplay_proxy_targets(project_name: str) -> dict[str, Any]:
 # --- API Endpoints ---
 @app.get("/")
 async def read_index():
+    """
+    根路径 - 显示 v2.2 新版前端
+    旧版 Dashboard 可通过 /classic 访问
+    """
+    # 优先显示 v2.html (新版前端)
+    v2_path = STATIC_DIR / "v2.html"
+    if v2_path.exists():
+        return FileResponse(v2_path)
+    
+    # 降级到 index.html (旧版前端)
     index_path = STATIC_DIR / "index.html"
     if not index_path.exists():
-        return JSONResponse({"error": "Frontend not found. Please create static/index.html"}, status_code=404)
+        return JSONResponse({"error": "Frontend not found"}, status_code=404)
+    return FileResponse(index_path)
+
+
+@app.get("/classic")
+async def read_classic_index():
+    """访问旧版 Dashboard"""
+    index_path = STATIC_DIR / "index.html"
+    if not index_path.exists():
+        return JSONResponse({"error": "Frontend not found"}, status_code=404)
     return FileResponse(index_path)
 
 

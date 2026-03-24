@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PythonProject1 v2.2 - 视频生成平台</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .hero-section { padding: 60px 0; color: white; }
+        .feature-card { background: white; border-radius: 15px; padding: 30px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .feature-icon { font-size: 2.5rem; color: #667eea; margin-bottom: 20px; }
+        .api-status { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; color: white; }
+        .template-preview { height: 200px; background: #f8f9fa; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #667eea; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Hero Section -->
+        <section class="hero-section text-center">
+            <div class="container">
+                <h1 class="display-4 fw-bold mb-4">
+                    <i class="bi bi-camera-video-fill me-3"></i>
+                    PythonProject1 v2.2
+                </h1>
+                <p class="lead mb-4">数据可视化视频生成平台 - 对标 Flourish</p>
+                <div class="d-flex gap-3 justify-content-center">
+                    <a href="#features" class="btn btn-light btn-lg">了解功能</a>
+                    <a href="/docs" class="btn btn-outline-light btn-lg">API 文档</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="py-5">
+            <div class="container">
+                <div class="row">
+                    <!-- 模板系统 -->
+                    <div class="col-md-4">
+                        <div class="feature-card">
+                            <div class="feature-icon"><i class="bi bi-layers-fill"></i></div>
+                            <h3>模板系统</h3>
+                            <p class="text-muted">6+ 种专业图表模板，零代码创建视频</p>
+                            <ul class="list-unstyled">
+                                <li v-for="template in templates" :key="template" class="mb-2">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>{{ template }}
+                                </li>
+                            </ul>
+                            <button class="btn btn-primary w-100" @click="showTemplates">
+                                <i class="bi bi-grid me-2"></i>查看模板
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 品牌系统 -->
+                    <div class="col-md-4">
+                        <div class="feature-card">
+                            <div class="feature-icon"><i class="bi bi-palette-fill"></i></div>
+                            <h3>品牌系统</h3>
+                            <p class="text-muted">6 个预定义主题，支持自定义品牌</p>
+                            <div class="d-flex gap-2 mb-3 flex-wrap">
+                                <span v-for="(color, name) in themeColors" :key="name" 
+                                      class="badge px-3 py-2" :style="{ backgroundColor: color }">
+                                    {{ name }}
+                                </span>
+                            </div>
+                            <button class="btn btn-primary w-100" @click="showThemes">
+                                <i class="bi bi-palette me-2"></i>查看主题
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 平台集成 -->
+                    <div class="col-md-4">
+                        <div class="feature-card">
+                            <div class="feature-icon"><i class="bi bi-share-fill"></i></div>
+                            <h3>平台集成</h3>
+                            <p class="text-muted">支持 6 个主流视频平台规格</p>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <span class="badge bg-danger"><i class="bi bi-play-circle me-1"></i>B 站</span>
+                                <span class="badge bg-dark"><i class="bi bi-music-note-beamed me-1"></i>抖音</span>
+                                <span class="badge bg-danger"><i class="bi bi-book me-1"></i>小红书</span>
+                                <span class="badge bg-danger"><i class="bi bi-youtube me-1"></i>YouTube</span>
+                            </div>
+                            <button class="btn btn-primary w-100" @click="showPlatforms">
+                                <i class="bi bi-globe me-2"></i>平台规格
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Status -->
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <div class="api-status">
+                            <h4 class="mb-3"><i class="bi bi-activity me-2"></i>API 状态</h4>
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success fs-4 me-2"></i>
+                                        <div>
+                                            <div class="fw-bold">API 服务</div>
+                                            <small>运行中 - 端口 8000</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success fs-4 me-2"></i>
+                                        <div>
+                                            <div class="fw-bold">模板引擎</div>
+                                            <small>{{ templates.length }} 个模板</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success fs-4 me-2"></i>
+                                        <div>
+                                            <div class="fw-bold">品牌主题</div>
+                                            <small>{{ themes.length }} 个主题</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-check-circle-fill text-success fs-4 me-2"></i>
+                                        <div>
+                                            <div class="fw-bold">渲染引擎</div>
+                                            <small>Plotly + FFmpeg</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Start -->
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <div class="feature-card">
+                            <h3 class="mb-4"><i class="bi bi-rocket-takeoff me-2"></i>快速开始</h3>
+                            <div class="bg-dark text-light p-4 rounded">
+                                <div class="mb-3">
+                                    <strong class="text-success">1. 启动 API 服务</strong>
+                                    <pre class="bg-black bg-opacity-25 p-3 rounded mt-2 mb-0"><code>python start.py api</code></pre>
+                                </div>
+                                <div class="mb-3">
+                                    <strong class="text-success">2. 创建视频</strong>
+                                    <pre class="bg-black bg-opacity-25 p-3 rounded mt-2 mb-0"><code>curl -X POST http://localhost:8000/api/v1/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"template":"bar_chart_race","data_inline":{...},"brand":"corporate"}'</code></pre>
+                                </div>
+                                <div>
+                                    <strong class="text-success">3. 下载视频</strong>
+                                    <pre class="bg-black bg-opacity-25 p-3 rounded mt-2 mb-0"><code>curl http://localhost:8000/api/v1/jobs/{job_id}/download -o output.mp4</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="py-4 text-center text-white">
+            <div class="container">
+                <p class="mb-0">
+                    <i class="bi bi-github me-2"></i>
+                    <a href="https://github.com/ChrisGanbare/PythonProject1" class="text-white" target="_blank">
+                        GitHub
+                    </a>
+                    <span class="mx-2">|</span>
+                    <i class="bi bi-book me-2"></i>
+                    <a href="/docs" class="text-white">API 文档</a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Templates Modal -->
+    <div class="modal fade" id="templatesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-layers me-2"></i>可用模板</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3" v-for="template in templates" :key="template">
+                            <div class="card h-100">
+                                <div class="template-preview">
+                                    <i :class="getTemplateIcon(template)"></i>
+                                </div>
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ template }}</h6>
+                                    <p class="card-text small text-muted">{{ getTemplateDesc(template) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Themes Modal -->
+    <div class="modal fade" id="themesModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-palette me-2"></i>品牌主题</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-for="(theme, name) in themeDetails" :key="name" class="mb-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <strong>{{ name }}</strong>
+                            <span class="badge" :style="{ backgroundColor: theme.primary }">{{ theme.primary }}</span>
+                        </div>
+                        <small class="text-muted">{{ theme.description }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    templates: [],
+                    themes: [],
+                    platforms: [],
+                    themeColors: {
+                        '企业': '#003366',
+                        '极简': '#000000',
+                        '鲜艳': '#FF6B6B',
+                        'NYT': '#326891',
+                        'FT': '#F27935'
+                    },
+                    themeDetails: {
+                        'default': { primary: '#1f77b4', description: '默认主题' },
+                        'corporate': { primary: '#003366', description: '企业风格' },
+                        'minimalist': { primary: '#000000', description: '极简风格' },
+                        'vibrant': { primary: '#FF6B6B', description: '鲜艳风格' },
+                        'new_york_times': { primary: '#326891', description: '纽约时报风格' },
+                        'financial_times': { primary: '#F27935', description: '金融时报风格' }
+                    }
+                }
+            },
+            mounted() {
+                this.fetchTemplates()
+                this.fetchThemes()
+            },
+            methods: {
+                async fetchTemplates() {
+                    try {
+                        const res = await fetch('/api/v1/templates')
+                        this.templates = await res.json()
+                    } catch (e) {
+                        this.templates = ['bar_chart_race', 'line_chart_animated', 'scatter_plot_dynamic', 'area_chart_stacked', 'bubble_chart', 'bar_chart_horizontal']
+                    }
+                },
+                async fetchThemes() {
+                    try {
+                        const res = await fetch('/api/v1/themes')
+                        this.themes = await res.json()
+                    } catch (e) {
+                        this.themes = ['default', 'corporate', 'minimalist', 'vibrant', 'new_york_times', 'financial_times']
+                    }
+                },
+                getTemplateIcon(name) {
+                    const icons = {
+                        'bar_chart_race': 'bi-bar-chart-fill',
+                        'line_chart_animated': 'bi-graph-up',
+                        'scatter_plot_dynamic': 'bi-diagram-3-fill',
+                        'area_chart_stacked': 'bi-layers-fill',
+                        'bubble_chart': 'bi-circle-fill',
+                        'bar_chart_horizontal': 'bi-bar-chart-line'
+                    }
+                    return 'bi ' + (icons[name] || 'bi-bar-chart-fill')
+                },
+                getTemplateDesc(name) {
+                    const descs = {
+                        'bar_chart_race': '柱状图竞赛 - 排名变化展示',
+                        'line_chart_animated': '动态折线图 - 趋势展示',
+                        'scatter_plot_dynamic': '动态散点图 - 相关性分析',
+                        'area_chart_stacked': '堆叠面积图 - 占比变化',
+                        'bubble_chart': '气泡图 - 三维数据对比',
+                        'bar_chart_horizontal': '水平柱状图 - 对比分析'
+                    }
+                    return descs[name] || '图表模板'
+                },
+                showTemplates() {
+                    new bootstrap.Modal(document.getElementById('templatesModal')).show()
+                },
+                showThemes() {
+                    new bootstrap.Modal(document.getElementById('themesModal')).show()
+                },
+                showPlatforms() {
+                    alert('支持平台:\n\n• 哔哩哔哩 (1920x1080, 16:9)\n• 抖音 (1080x1920, 9:16)\n• 小红书 (1080x1920, 9:16)\n• YouTube (1920x1080, 16:9)\n• Instagram Reels (1080x1920, 9:16)\n• TikTok (1080x1920, 9:16)')
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

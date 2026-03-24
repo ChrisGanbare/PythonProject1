@@ -1,0 +1,1524 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Video Project Control Center</title>
+    <!-- 使用国内稳定 CDN (BootCDN) -->
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+  </head>
+  <body>
+    <div id="app" class="app-layout">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <i class="bi bi-play-btn-fill me-2 text-primary fs-4"></i>
+          <span class="fw-bold fs-5">创作控制台</span>
+        </div>
+
+        <div class="sidebar-content">
+          <!-- 工作区级：与「项目 / 会话」数据无关，始终可打开 -->
+          <div class="px-3 pb-2 sidebar-global-actions">
+             <button class="btn btn-outline-secondary w-100 shadow-sm" data-bs-toggle="modal" data-bs-target="#settingsModal" @click="fetchSettings">
+               <i class="bi bi-gear-fill me-2"></i>全局设置
+             </button>
+          </div>
+
+          <!-- 侧栏一级分区：与主区「任务工作流」、Agent 会话并列，避免长页堆叠 -->
+          <div class="px-3 pb-2 sidebar-view-switch">
+            <div class="btn-group w-100" role="group" aria-label="侧栏分区">
+              <button
+                type="button"
+                class="btn btn-sm position-relative"
+                :class="sidebarPrimaryTab === 'projects' ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="sidebarPrimaryTab = 'projects'"
+              ><i class="bi bi-folder2-open me-1"></i>项目与任务
+                <span v-if="projectsTabBusy && sidebarPrimaryTab !== 'projects'" class="tab-busy-dot" title="渲染中…"></span>
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm position-relative"
+                :class="sidebarPrimaryTab === 'agent' ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="sidebarPrimaryTab = 'agent'"
+              ><i class="bi bi-chat-dots me-1"></i>意图会话
+                <span v-if="agentTabBusy && sidebarPrimaryTab !== 'agent'" class="tab-busy-dot" title="AI 处理中…"></span>
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm position-relative"
+                :class="sidebarPrimaryTab === 'code-studio' ? 'btn-primary' : 'btn-outline-secondary'"
+                @click="sidebarPrimaryTab = 'code-studio'"
+              ><i class="bi bi-code-slash me-1"></i>代码工坊
+                <span v-if="codeStudioTabBusy && sidebarPrimaryTab !== 'code-studio'" class="tab-busy-dot" title="代码处理中…"></span>
+              </button>
+            </div>
+            <p class="text-muted small mt-2 mb-0 sidebar-view-hint">{{ sidebarTabHint }}</p>
+          </div>
+
+          <!-- 仅挂载当前分区，避免两个 flex 子项同时占位导致项目列表被压扁 -->
+          <div class="sidebar-tab-stack flex-grow-1 min-h-0 d-flex flex-column">
+          <!-- 项目与任务：磁盘子项目 + Registry 任务树（新建 / 刷新仅在此分区） -->
+          <div v-if="sidebarPrimaryTab === 'projects'" class="sidebar-tab-panel sidebar-tab-projects flex-grow-1 min-h-0 d-flex flex-column">
+          <div class="px-3 pb-2 border-bottom border-light sidebar-projects-actions">
+            <div class="d-flex gap-2">
+              <button class="btn btn-primary flex-grow-1 shadow-sm btn-sm" data-bs-toggle="modal" data-bs-target="#createProjectModal">
+                <i class="bi bi-plus-lg me-1"></i>新建项目
+              </button>
+              <button
+                type="button"
+                class="btn btn-outline-secondary shadow-sm btn-sm flex-shrink-0"
+                title="同步最新项目列表"
+                @click="fetchProjects"
+              >
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+          </div>
+          <div v-if="loadingProjects" class="text-center p-4">
+            <div class="spinner-border spinner-border-sm text-primary"></div>
+            <div class="text-muted mt-2 small">正在扫描项目...</div>
+          </div>
+
+          <div v-if="error" class="alert alert-danger m-3 small">
+            {{ error }} <a href="#" @click.prevent="fetchProjects">重试</a>
+          </div>
+
+          <div v-if="!loadingProjects && !error" class="sidebar-projects-panel">
+            <div class="sidebar-projects-toolbar">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white border-end-0 py-0"><i class="bi bi-search text-muted"></i></span>
+                <input
+                  type="search"
+                  class="form-control border-start-0"
+                  v-model.trim="projectListQuery"
+                  placeholder="搜索项目…"
+                  autocomplete="off"
+                  aria-label="搜索项目"
+                >
+                <button v-if="projectListQuery" class="btn btn-outline-secondary" type="button" title="清空" @click="projectListQuery = ''"><i class="bi bi-x-lg"></i></button>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-1">
+                <span class="sidebar-project-count">{{ filteredSortedProjects.length }} / {{ projects.length }} 个项目</span>
+                <select class="form-select form-select-sm sidebar-sort-select" v-model="projectListSort" title="排序方式">
+                  <option value="name_asc">A→Z</option>
+                  <option value="name_desc">Z→A</option>
+                  <option value="display_asc">名称</option>
+
+                </select>
+              </div>
+              <div v-if="currentProject && projectListQuery && !isCurrentProjectInFilter" class="alert alert-warning py-1 px-2 mb-0 mt-1 small">
+                当前选中项目不在筛选结果中，<a href="#" class="alert-link" @click.prevent="projectListQuery = ''">清空搜索</a>
+              </div>
+            </div>
+
+            <div class="sidebar-projects-scroll">
+            <div v-if="filteredSortedProjects.length === 0" class="text-center text-muted small py-4 px-2">
+              <i class="bi bi-funnel d-block fs-3 mb-2 opacity-50"></i>
+              <span v-if="projects.length === 0">暂无项目，点击「新建项目」</span>
+              <span v-else>无匹配项，请修改关键词或<a href="#" class="link-primary" @click.prevent="projectListQuery = ''">清空搜索</a></span>
+            </div>
+          <div v-else class="accordion accordion-flush" id="projectsAccordion">
+            <div class="accordion-item" v-for="proj in filteredSortedProjects" :key="proj.name">
+              <h2 class="accordion-header d-flex align-items-stretch flex-nowrap p-0">
+                <button
+                  class="accordion-button flex-grow-1 rounded-0"
+                  :class="{ collapsed: currentProject !== proj.name }"
+                  type="button"
+                  @click="toggleProject(proj.name)"
+                >
+                  <div class="text-truncate text-start w-100">
+                      <div class="fw-semibold">{{ getProjectDisplayName(proj) }}</div>
+                      <div v-if="proj.description && getProjectDisplayName(proj) !== proj.name" class="text-muted fw-normal text-truncate" style="font-size: 0.68rem; opacity: 0.7">
+                          {{ proj.name }}
+                      </div>
+                      <div v-if="proj.capabilities && proj.capabilities.viz_backends && proj.capabilities.viz_backends.length" class="d-flex flex-wrap gap-1 mt-1">
+                        <span v-for="b in proj.capabilities.viz_backends" :key="b" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size:0.6rem;font-weight:500">{{ b }}</span>
+                      </div>
+                  </div>
+                </button>
+                <div v-if="proj.deletable !== false" class="sidebar-proj-action" @click.stop>
+                  <span role="button" tabindex="0" title="删除项目" @click="openDeleteProjectModal(proj, $event)" @keydown.enter="openDeleteProjectModal(proj, $event)"><i class="bi bi-trash3"></i></span>
+                </div>
+              </h2>
+              <div :id="'collapse-p-' + proj.name" class="accordion-collapse collapse" :class="{ show: currentProject === proj.name }">
+                <div class="accordion-body p-0 py-1">
+                  <template v-for="groupKey in ['prep', 'core']" :key="groupKey">
+                    <!-- 多任务分组：保留分组标题 + 子列表 -->
+                    <div v-if="getProjectTaskGroups(proj.tasks)[groupKey].length > 1" :class="{ 'mt-1': groupKey !== 'prep' }">
+                      <div class="task-group-header"><i :class="taskLaneMeta(groupKey).icon"></i> {{ taskLaneMeta(groupKey).label }}</div>
+                      <div
+                        v-for="task in getProjectTaskGroups(proj.tasks)[groupKey]"
+                        :key="task.name"
+                        class="nav-link-custom"
+                        :class="{ active: currentTask && currentTask.name === task.name && currentProject === proj.name }"
+                        @click="selectTask(proj.name, task.name)"
+                      >
+                        <span class="nav-link-title">{{ getFriendlyTaskName(task.name) }}</span>
+                      </div>
+                    </div>
+                    <!-- 单任务分组：合并为一行 -->
+                    <div v-else-if="getProjectTaskGroups(proj.tasks)[groupKey].length === 1"
+                         class="nav-link-custom"
+                         :class="{ active: currentTask && currentTask.name === getProjectTaskGroups(proj.tasks)[groupKey][0].name && currentProject === proj.name, 'mt-1': groupKey !== 'prep' }"
+                         @click="selectTask(proj.name, getProjectTaskGroups(proj.tasks)[groupKey][0].name)">
+                      <span class="nav-link-title"><i :class="taskLaneMeta(groupKey).icon" class="text-muted me-1" style="font-size:0.72rem"></i>{{ taskLaneMeta(groupKey).label }}</span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+            </div>
+          </div>
+          </div>
+
+            <div v-else-if="sidebarPrimaryTab === 'agent'" class="sidebar-tab-panel sidebar-tab-agent flex-grow-1 min-h-0 d-flex flex-column">
+            <div class="studio-agent-panel flex-grow-1 d-flex flex-column min-h-0 px-3 pb-2">
+              <p class="text-muted small mb-2 flex-shrink-0 sidebar-micro-hint">每次只能有一个进行中的会话。完成后可编辑标题或删除。</p>
+              <div class="d-flex flex-wrap gap-1 mb-2 align-items-center flex-shrink-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                  :disabled="studioSessionsLoading"
+                  :title="studioSessionsLoading ? '刷新中…' : '刷新会话列表'"
+                  @click="fetchStudioSessions">
+                  <i class="bi" :class="studioSessionsLoading ? 'bi-arrow-clockwise spin' : 'bi-arrow-clockwise'"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-primary flex-grow-1"
+                  :disabled="hasActiveStudioSession"
+                  :title="hasActiveStudioSession ? '已有进行中的会话，完成后才能创建新会话' : '新建意图会话'"
+                  @click="createStudioSession">
+                  <i class="bi bi-plus-circle me-1"></i>新建会话
+                </button>
+              </div>
+              <div v-if="studioSessionsSoftNotice" class="alert alert-light border small py-2 mb-2 flex-shrink-0 text-secondary" role="status">{{ studioSessionsSoftNotice }}</div>
+              <p v-if="studioSessionsError" class="text-danger small mb-1 flex-shrink-0">{{ studioSessionsError }}</p>
+              <div
+                v-if="studioSessions.filter(s => !s.is_completed).length > 1"
+                class="d-flex align-items-center gap-1 mb-2 flex-shrink-0 px-1 py-1 rounded"
+                style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25)"
+              >
+                <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:0.72rem"></i>
+                <span class="text-warning small flex-grow-1" style="font-size:0.72rem">存在 {{ studioSessions.filter(s => !s.is_completed).length }} 个残余空会话</span>
+                <button type="button" class="btn btn-sm py-0 px-1 text-warning border-0"
+                  style="font-size:0.72rem;background:rgba(245,158,11,0.12)"
+                  @click="cleanupStaleSessions">一键清理</button>
+              </div>
+              <div v-if="studioSessionsLoading" class="text-muted small py-1 flex-shrink-0">加载会话…</div>
+              <div v-else class="studio-session-list-scroll">
+                <p v-if="studioSessions.length === 0 && !studioSessionsSoftNotice" class="text-muted small mb-0">
+                  暂无会话，点击「新建会话」开始。
+                </p>
+                <div
+                  v-for="s in studioSessions"
+                  :key="s.id"
+                  class="studio-session-item"
+                  :class="{ 'is-selected': selectedStudioSessionId === s.id, 'is-active': !s.is_completed }"
+                  @click="selectStudioSession(s.id)"
+                >
+                  <div class="ssi-indicator">
+                    <span v-if="!s.is_completed" class="ssi-pulse-dot"></span>
+                    <i v-else class="bi bi-chat-left-dots ssi-done-icon"></i>
+                  </div>
+                  <div class="ssi-body">
+                    <div class="ssi-title text-truncate">{{ studioSessionLabel(s) }}</div>
+                    <div class="ssi-time">{{ formatStudioTime(s.updated_at || s.created_at) }}</div>
+                  </div>
+                  <div class="ssi-actions" @click.stop>
+                    <button type="button" class="ssi-btn" title="编辑标题"
+                      @click="openEditSessionTitle(s.id, s.title)">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="ssi-btn ssi-btn-danger"
+                      :disabled="!s.is_completed"
+                      :title="s.is_completed ? '删除会话' : '进行中的会话无法删除'"
+                      @click="confirmDeleteSession(s.id)">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-if="selectedStudioSessionId" class="studio-compile-history flex-grow-1 min-h-0 d-flex flex-column mt-2 pt-2 border-top border-light">
+                <div class="d-flex justify-content-between align-items-center mb-1 flex-shrink-0">
+                  <span class="small fw-bold text-secondary"><i class="bi bi-clock-history me-1"></i>编译历史</span>
+                  <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted"
+                      :disabled="studioSessionDetailLoading"
+                      @click="refreshStudioSessionDetail" title="刷新">
+                      <i class="bi bi-arrow-clockwise" :class="{ spin: studioSessionDetailLoading }" style="font-size:0.8rem"></i>
+                    </button>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                      :disabled="agentCompiling || agentRunning"
+                      :title="(agentCompiling || agentRunning) ? '进行中…' : ''"
+                      @click="clearStudioSessionSelection">关闭</button>
+                  </div>
+                </div>
+                <div v-if="studioSessionDetailLoading" class="text-muted small">加载详情…</div>
+                <div v-else-if="studioSessionDetail && studioSessionDetail.turns && studioSessionDetail.turns.length === 0" class="text-muted small">暂无对话记录。</div>
+                <div v-else-if="studioSessionDetail && studioSessionDetail.turns" class="studio-session-detail-scroll flex-grow-1 min-h-0">
+                  <div
+                    v-for="turn in studioSessionDetail.turns"
+                    :key="'t-' + turn.id + '-' + turn.seq"
+                    class="studio-turn-item"
+                  >
+                    <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                      <span class="badge rounded-pill" :class="turn.role === 'user' ? 'bg-info text-dark' : 'bg-success'">{{ turn.role === 'user' ? '用户' : '助手' }}</span>
+                      <span class="text-muted small">#{{ turn.seq }}</span>
+                      <span class="text-muted small ms-auto">{{ formatStudioTime(turn.created_at) }}</span>
+                    </div>
+                    <div v-if="turn.role === 'user'" class="small studio-turn-user-text">{{ turn.content_text || '（空）' }}</div>
+                    <div v-else class="small">
+                      <pre v-if="turn.compiled_template" class="studio-json-pre mb-1">{{ prettyJson(turn.compiled_template) }}</pre>
+                      <p v-else class="text-muted mb-1 small">无标准模板（例如编译失败或未返回 JSON）。</p>
+                      <button
+                        v-if="turn.compiled_template"
+                        type="button"
+                        class="btn btn-link btn-sm p-0 align-baseline"
+                        @click="copyStudioTemplate(turn.compiled_template)"
+                      >复制 JSON</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── 代码工坊侧栏 ── -->
+          <div v-else-if="sidebarPrimaryTab === 'code-studio'" class="sidebar-tab-panel sidebar-tab-code-studio flex-grow-1 min-h-0 d-flex flex-column">
+            <div class="studio-agent-panel flex-grow-1 d-flex flex-column min-h-0 px-3 pb-2">
+              <p class="text-muted small mb-2 flex-shrink-0 sidebar-micro-hint">选择项目和任务，用自然语言修改渲染代码，一键写入磁盘。</p>
+              <!-- 选择项目 -->
+              <div class="mb-2 flex-shrink-0">
+                <label class="form-label mb-1 small fw-semibold">选择项目</label>
+                <select class="form-select form-select-sm" v-model="csSelectedProjectName" @change="csProjectChanged">
+                  <option value="">-- 请选择 --</option>
+                  <option v-for="p in projects" :key="p.name" :value="p.name">{{ p.display_name || p.name }}</option>
+                </select>
+              </div>
+              <!-- 选择任务 -->
+              <div v-if="csSelectedProjectName && csTasksForSelectedProject.length > 0" class="mb-2 flex-shrink-0">
+                <label class="form-label mb-1 small fw-semibold">选择任务</label>
+                <select class="form-select form-select-sm" v-model="csSelectedTaskName" @change="csTaskChanged">
+                  <option value="">-- 全部会话 --</option>
+                  <option v-for="t in csTasksForSelectedProject" :key="t.name" :value="t.name">{{ getFriendlyTaskName(t.name) }}</option>
+                </select>
+              </div>
+              <!-- 新建/列出会话 -->
+              <div v-if="csSelectedProjectName" class="flex-shrink-0">
+                <div class="d-flex gap-1 mb-1 align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" title="刷新会话列表" @click="csFetchSessions">
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-primary" @click="csCreateSession">
+                    <i class="bi bi-plus me-1"></i>新建会话
+                  </button>
+                </div>
+                <p v-if="csSessionsError" class="text-danger small mb-1">{{ csSessionsError }}</p>
+              </div>
+              <!-- 会话列表 -->
+              <div v-if="csSelectedProjectName" class="studio-session-list-scroll mt-1">
+                <div v-if="csSessionsLoading" class="text-muted small py-1">加载会话…</div>
+                <div v-else-if="csSessions.length === 0" class="text-muted small py-1">暂无会话，点击「新建会话」开始。</div>
+                <button
+                  v-for="s in csSessions"
+                  :key="s.id"
+                  type="button"
+                  class="btn btn-sm w-100 text-start mb-1 studio-session-row"
+                  :class="csSelectedSessionId === s.id ? 'btn-primary' : 'btn-outline-secondary'"
+                  @click="csSelectSession(s.id)"
+                >
+                  <span class="d-block text-truncate studio-session-row-title">{{ s.title || (s.task_name ? (getFriendlyTaskName(s.task_name) + ' 迭代') : '未命名会话') }}</span>
+                  <span class="small opacity-75">{{ formatStudioTime(s.updated_at || s.created_at) }}</span>
+                </button>
+              </div>
+              <!-- 选中会话的轮次历史 -->
+              <div v-if="csSelectedSessionId && csSessionDetail" class="studio-compile-history flex-grow-1 min-h-0 d-flex flex-column mt-2 pt-2 border-top border-light">
+                <div class="d-flex justify-content-between align-items-center mb-1 flex-shrink-0">
+                  <span class="small fw-bold text-secondary"><i class="bi bi-clock-history me-1"></i>对话历史</span>
+                  <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" @click="csClearSession">清除选中</button>
+                </div>
+                <div v-if="csSessionDetailLoading" class="text-muted small">加载…</div>
+                <div v-else-if="!csSessionDetail.turns || csSessionDetail.turns.length === 0" class="text-muted small">暂无对话。</div>
+                <div v-else class="studio-session-detail-scroll flex-grow-1 min-h-0">
+                  <div v-for="turn in csSessionDetail.turns" :key="'cst-'+turn.id" class="studio-turn-item">
+                    <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                      <span class="badge rounded-pill" :class="turn.role === 'user' ? 'bg-info text-dark' : 'bg-warning text-dark'">{{ turn.role === 'user' ? '用户' : 'AI' }}</span>
+                      <span class="text-muted small">#{{ turn.seq }}</span>
+                      <span v-if="turn.applied_at" class="badge bg-success bg-opacity-25 text-success small ms-auto" title="已写入磁盘">✓ 已应用</span>
+                      <span v-else-if="turn.file_path" class="badge bg-secondary bg-opacity-25 text-secondary small ms-auto">待应用</span>
+                    </div>
+                    <div class="small studio-turn-user-text">{{ turn.content_text || '（空）' }}</div>
+                    <div v-if="turn.file_path" class="small text-muted font-monospace mt-1">{{ turn.file_path }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Top Bar -->
+        <header class="top-bar">
+          <div class="d-flex align-items-center">
+            <h5 class="mb-0 fw-bold" v-if="agentMode">
+              <i class="bi bi-robot me-2 text-primary"></i>AI 意图编译
+            </h5>
+            <h5 class="mb-0 fw-bold" v-else-if="codeStudioMode">
+              <i class="bi bi-code-slash me-2 text-warning"></i>代码工坊
+              <span v-if="csSelectedProjectName" class="fw-normal text-muted fs-6 ms-2">{{ csSelectedProjectName }}</span>
+            </h5>
+            <h5 class="mb-0 fw-bold" v-else-if="currentTask">
+              <span class="text-muted fw-normal">{{ getProjectDisplayName(currentProject) }} /</span>
+              {{ getFriendlyTaskName(currentTask.name) }}
+            </h5>
+            <h5 class="mb-0 text-muted" v-else>未选择任务</h5>
+          </div>
+          <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            <!-- 跨 Tab 全局状态条：当有任务在其它分区运行时显示 -->
+            <span
+              v-if="projectsTabBusy && !agentMode && !codeStudioMode"
+              class="badge bg-warning text-dark d-flex align-items-center gap-1 px-2 py-1"
+              style="font-size:0.75rem"
+            >
+              <span class="spinner-grow spinner-grow-sm" style="width:.5rem;height:.5rem"></span>
+              渲染进行中
+            </span>
+            <span
+              v-if="projectsTabBusy && (agentMode || codeStudioMode)"
+              class="badge bg-warning text-dark d-flex align-items-center gap-1 px-2 py-1 cursor-pointer"
+              style="font-size:0.75rem"
+              @click="sidebarPrimaryTab = 'projects'"
+              title="点击切回项目与任务"
+            >
+              <span class="spinner-grow spinner-grow-sm" style="width:.5rem;height:.5rem"></span>
+              项目渲染中 &mdash; 点击返回
+            </span>
+            <span
+              v-if="agentTabBusy && !agentMode"
+              class="badge bg-primary d-flex align-items-center gap-1 px-2 py-1 cursor-pointer"
+              style="font-size:0.75rem"
+              @click="sidebarPrimaryTab = 'agent'"
+              title="点击切到意图会话"
+            >
+              <span class="spinner-grow spinner-grow-sm" style="width:.5rem;height:.5rem"></span>
+              AI 编译中 &mdash; 点击返回
+            </span>
+            <span
+              v-if="codeStudioTabBusy && !codeStudioMode"
+              class="badge bg-warning text-dark d-flex align-items-center gap-1 px-2 py-1 cursor-pointer"
+              style="font-size:0.75rem"
+              @click="sidebarPrimaryTab = 'code-studio'"
+              title="点击切到代码工坊"
+            >
+              <span class="spinner-grow spinner-grow-sm" style="width:.5rem;height:.5rem"></span>
+              AI 代码生成中 &mdash; 点击返回
+            </span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" title="整体工作流、侧栏分区与任务分组" @click="openGuideModal">
+              <i class="bi bi-map me-1"></i>使用说明
+            </button>
+          </div>
+        </header>
+
+        <!-- Content -->
+        <div class="content-scroll">
+
+          <!-- ── AI Agent Panel ── -->
+          <div v-if="agentMode" class="container-fluid p-4" style="max-width: 900px; margin: 0 auto;">
+
+            <!-- 空状态：未选中会话 -->
+            <div v-if="!selectedStudioSessionId" class="alert alert-light border d-flex align-items-center gap-2 py-3 small text-muted">
+              <i class="bi bi-info-circle fs-5"></i>
+              <span>在左侧新建或选中一个会话，即可开始 AI 意图编译。</span>
+            </div>
+
+            <!-- 已选会话：完整编译区 -->
+            <template v-if="selectedStudioSessionId">
+
+            <!-- 当前会话上下文提示条 -->
+            <div class="alert alert-primary d-flex align-items-center justify-content-between gap-3 mb-4 py-2">
+              <div class="d-flex align-items-center gap-2 small">
+                <i class="bi bi-chat-dots-fill"></i>
+                <span>会话 <code class="small">{{ selectedStudioSessionId.slice(0, 8) }}…</code>
+                  <span v-if="studioSessionDetail && studioSessionDetail.title" class="ms-1 fw-semibold">「{{ studioSessionDetail.title }}」</span>
+                </span>
+              </div>
+              <div class="d-flex gap-2 flex-shrink-0">
+                <button v-if="lastCompiledTemplate()" type="button" class="btn btn-sm btn-outline-primary py-0" @click="loadLastCompiledTemplate">载入上次结果</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0"
+                  :disabled="agentCompiling || agentRunning"
+                  :title="(agentCompiling || agentRunning) ? '编译/渲染进行中，无法切换会话' : '切换到其他会话'"
+                  @click="clearStudioSessionSelection">切换会话</button>
+              </div>
+            </div>
+
+            <!-- AI 未配置警告 -->
+            <div v-if="!agentAiConfigured" class="alert alert-warning d-flex align-items-start gap-3 mb-4">
+              <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
+              <div>
+                <strong>AI 尚未配置</strong>：编译功能需要 OpenAI 兼容 API。
+                请先在「全局设置」中填写 <strong>Base URL</strong> 与 <strong>API Key</strong>，保存后即可使用。
+                <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline" @click="openSettingsModal">打开设置 →</button>
+              </div>
+            </div>
+
+            <!-- 输入卡片 -->
+            <div class="task-card mb-4">
+              <div class="card-header bg-white py-3 px-4 border-bottom">
+                <h5 class="m-0 fw-bold"><i class="bi bi-robot me-2 text-primary"></i>自然语言 → 视频任务</h5>
+                <div class="small text-muted mt-1">用中文描述需求，AI 自动选择项目、任务并生成所有参数</div>
+              </div>
+              <div class="card-body p-4">
+                <div class="mb-3">
+                  <textarea
+                    class="form-control"
+                    rows="4"
+                    v-model="agentPrompt"
+                    placeholder="例如：帮我制作一30秒的房贷利息对比视频，目标平台抖音，贷款100万30年等额还款年利獴4.5%，科技感风格"
+                    :disabled="agentCompiling || agentRunning"
+                    @keydown.ctrl.enter.prevent="compileAgentPrompt"
+                    style="font-size: 0.95rem;"
+                  ></textarea>
+                  <div class="form-text mt-1">
+                    <i class="bi bi-lightbulb me-1 text-warning"></i>
+                    另一例：基金费用侵蚀可视化，初始本金10万元，年化收益8%，管1.5%管理费，持据20年，B站横屏
+                    <span class="text-muted ms-2">（Ctrl+Enter 快速编译）</span>
+                  </div>
+                </div>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    @click="compileAgentPrompt"
+                    :disabled="!agentPrompt.trim() || agentCompiling || agentRunning"
+                  >
+                    <span v-if="agentCompiling" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <i v-else class="bi bi-magic me-1"></i>
+                    {{ agentCompiling ? 'AI 编译中…' : 'AI 编译（生成参数）' }}
+                  </button>
+                  <button
+                    v-if="agentCompiledResult || agentLogs.length > 0"
+                    type="button"
+                    class="btn btn-outline-secondary btn-sm"
+                    @click="resetAgentPanel"
+                    :disabled="agentCompiling || agentRunning"
+                  >重置</button>
+                  <div v-if="agentCompileError" class="alert alert-danger small py-1 px-3 mb-0 flex-grow-1">{{ agentCompileError }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 编译结果卡片（可编辑参数后运行） -->
+            <div v-if="agentCompiledResult" class="task-card mb-4">
+              <div class="card-header bg-white py-3 px-4 border-bottom">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                  <div>
+                    <h5 class="m-0 fw-bold"><i class="bi bi-check2-circle me-2 text-success"></i>编译结果（参数可调整）</h5>
+                    <div class="text-muted small mt-1" v-if="agentCompiledResult.intent_summary">
+                      <i class="bi bi-chat-quote me-1"></i>AI 理解：{{ agentCompiledResult.intent_summary }}
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2 flex-shrink-0 mt-1">
+                    <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1 rounded-2">{{ agentCompiledResult.project }}</span>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary px-2 py-1 rounded-2">{{ agentCompiledResult.task }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body p-4">
+                <template v-if="Object.keys(agentEditedKwargs).length > 0">
+                  <h6 class="text-uppercase text-muted fw-bold small mb-3">参数（可直接修改）</h6>
+                  <div class="row g-3 mb-4">
+                    <div class="col-md-6" v-for="(val, key) in agentEditedKwargs" :key="'ak-'+key">
+                      <div class="form-group">
+                        <label class="form-label param-label">{{ getFieldLabel(key) }}</label>
+                        <select
+                          v-if="getFieldType(key) === 'select'"
+                          class="form-select"
+                          v-model="agentEditedKwargs[key]"
+                          :disabled="agentRunning"
+                        >
+                          <option v-for="opt in getFieldOptions(key)" :value="opt.value" :key="opt.value">{{ opt.label }}</option>
+                        </select>
+                        <input
+                          v-else
+                          :type="(typeof val === 'number') ? 'number' : 'text'"
+                          :step="(typeof val === 'number' && !Number.isInteger(val)) ? '0.0001' : '1'"
+                          class="form-control"
+                          v-model="agentEditedKwargs[key]"
+                          :disabled="agentRunning"
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <div v-else class="alert alert-secondary py-2 mb-3 small">
+                  <i class="bi bi-info-circle me-1"></i>
+                  该任务不需要配置参数，点击「开始渲染」即可直接执行。
+                </div>
+                <div class="d-flex gap-3 align-items-center flex-wrap">
+                  <button
+                    type="button"
+                    class="btn btn-success btn-lg"
+                    @click="runAgentJob"
+                    :disabled="agentRunning || agentJobSuccess"
+                  >
+                    <span v-if="agentRunning" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <i v-else-if="agentJobSuccess" class="bi bi-check-circle-fill me-1"></i>
+                    <i v-else class="bi bi-play-fill me-1"></i>
+                    {{ agentRunning ? '渲染中…' : agentJobSuccess ? '渲染完成' : '开始渲染' }}
+                  </button>
+                  <button
+                    v-if="agentJobSuccess || agentJobFailure"
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    @click="resetAgentPanel"
+                  >重新开始</button>
+                  <span v-if="agentJobId && !agentRunning" class="badge bg-light text-dark border font-monospace small">
+                    job: {{ agentJobId.slice(0, 8) }}…
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 执行日志 -->
+            <div v-if="agentLogs.length > 0" class="task-card mb-4">
+              <div class="card-header bg-white py-2 px-4 border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="m-0 fw-bold text-secondary"><i class="bi bi-terminal me-2"></i>执行日志</h6>
+                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-secondary" @click="agentLogs = []" :disabled="agentRunning">清空</button>
+              </div>
+              <div class="card-body p-0">
+                <div class="px-4 py-3" style="background:#0d1117;font-family:'Courier New',monospace;font-size:0.82rem;max-height:240px;overflow-y:auto;border-radius:0 0 8px 8px;">
+                  <div v-for="(log, i) in agentLogs" :key="'alog-'+i" style="line-height:1.9;color:#e6edf3;">{{ log }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 渲染成功 -->
+            <div v-if="agentJobSuccess && agentJobResult && Object.keys(agentJobResult).length > 0" class="task-card mb-4">
+              <div class="card-header bg-success bg-opacity-10 py-3 px-4 border-bottom border-success border-opacity-25">
+                <h5 class="m-0 fw-bold text-success"><i class="bi bi-check-circle-fill me-2"></i>渲染完成</h5>
+              </div>
+              <div class="card-body p-4">
+                <pre class="bg-light rounded p-3 small mb-0" style="max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;">{{ prettyJson(agentJobResult) }}</pre>
+              </div>
+            </div>
+
+            <!-- 渲染失败 -->
+            <div v-if="agentJobFailure" class="task-card mb-4">
+              <div class="card-header bg-danger bg-opacity-10 py-3 px-4 border-bottom border-danger border-opacity-25">
+                <h5 class="m-0 fw-bold text-danger"><i class="bi bi-x-circle-fill me-2"></i>渲染失败</h5>
+              </div>
+              <div class="card-body p-4">
+                <p class="text-danger small mb-2">{{ agentJobFailure.error }}</p>
+                <p class="text-muted small mb-0">请查看终端日志获取详情，可调整参数后重新编译运行。</p>
+              </div>
+            </div>
+
+            </template><!-- end selectedStudioSessionId -->
+
+          </div><!-- end agentMode -->
+
+          <!-- ── Code Studio 主区面板 ── -->
+          <div v-else-if="codeStudioMode" class="container-fluid p-4" style="max-width: 900px; margin: 0 auto;">
+
+            <!-- 无会话提示 -->
+            <div v-if="!csSelectedSessionId" class="alert alert-light border d-flex align-items-center gap-2 py-3 small text-muted">
+              <i class="bi bi-info-circle fs-5"></i>
+              <span>在左侧「代码工坊」侧栏选择项目并新建或选中一个会话，即可在此进行自然语言代码迭代。</span>
+            </div>
+
+            <!-- 已选会话 -->
+            <template v-if="csSelectedSessionId">
+
+              <!-- AI 未配置警告 -->
+              <div v-if="!agentAiConfigured" class="alert alert-warning d-flex align-items-start gap-3 mb-4">
+                <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 mt-1"></i>
+                <div>
+                  <strong>AI 尚未配置</strong>：代码编译需要 OpenAI 兼容 API。
+                  <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline" @click="openSettingsModal">打开设置 →</button>
+                </div>
+              </div>
+
+              <!-- 输入卡片 -->
+              <div class="task-card mb-4">
+                <div class="card-header bg-white py-3 px-4 border-bottom">
+                  <h5 class="m-0 fw-bold"><i class="bi bi-code-slash me-2 text-warning"></i>自然语言 → 代码补丁</h5>
+                  <div class="small text-muted mt-1">描述你想修改的渲染逻辑，AI 生成完整文件内容后可预览并一键写入</div>
+                </div>
+                <div class="card-body p-4">
+                  <div class="mb-2">
+                    <input
+                      type="text"
+                      class="form-control form-control-sm mb-2"
+                      v-model.trim="csFileHint"
+                      placeholder="目标文件（可选，如 renderer/viz_backend.py）"
+                      :disabled="csCompiling || csApplying"
+                    >
+                    <textarea
+                      class="form-control"
+                      rows="4"
+                      v-model="csPrompt"
+                      placeholder="例如：把柱状图颜色改成渐变科技蓝，数值标签显示在柱顶，并增加标题文字"
+                      :disabled="csCompiling || csApplying"
+                      @keydown.ctrl.enter.prevent="csCompile"
+                      style="font-size: 0.95rem;"
+                    ></textarea>
+                    <div class="form-text mt-1"><i class="bi bi-keyboard me-1 text-muted"></i>Ctrl+Enter 快速发送</div>
+                  </div>
+                  <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button type="button" class="btn btn-warning" @click="csCompile" :disabled="!csPrompt.trim() || csCompiling || csApplying">
+                      <span v-if="csCompiling" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                      <i v-else class="bi bi-magic me-1"></i>
+                      {{ csCompiling ? 'AI 生成中…' : 'AI 生成代码' }}
+                    </button>
+                    <div v-if="csCompileError" class="alert alert-danger small py-1 px-3 mb-0 flex-grow-1">{{ csCompileError }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 最新补丁预览 + 应用按钮 -->
+              <div v-if="csLatestPatch" class="task-card mb-4">
+                <div class="card-header bg-white py-3 px-4 border-bottom">
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <h5 class="m-0 fw-bold"><i class="bi bi-file-earmark-code me-2 text-warning"></i>AI 生成补丁预览</h5>
+                    <span class="badge bg-warning bg-opacity-20 text-warning-emphasis font-monospace small">{{ csLatestPatch.file_path }}</span>
+                  </div>
+                </div>
+                <div class="card-body p-4">
+                  <p class="small text-muted mb-2"><i class="bi bi-chat-quote me-1"></i>{{ csLatestPatch.explanation }}</p>
+                  <pre class="bg-dark text-light rounded p-3 small mb-3" style="max-height:340px;overflow-y:auto;white-space:pre;font-family:'Courier New',monospace;font-size:0.78rem;">{{ csLatestPatch.new_content }}</pre>
+                  <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button type="button" class="btn btn-success" @click="csApply" :disabled="csApplying || csLatestPatchApplied">
+                      <span v-if="csApplying" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                      <i v-else-if="csLatestPatchApplied" class="bi bi-check-circle-fill me-1"></i>
+                      <i v-else class="bi bi-arrow-down-circle me-1"></i>
+                      {{ csApplying ? '写入中…' : csLatestPatchApplied ? '已写入磁盘' : '写入磁盘' }}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @click="csCopyPatch">
+                      <i class="bi bi-clipboard me-1"></i>复制代码
+                    </button>
+                    <div v-if="csApplyError" class="alert alert-danger small py-1 px-3 mb-0 flex-grow-1">{{ csApplyError }}</div>
+                    <div v-if="csApplySuccess" class="alert alert-success small py-1 px-3 mb-0 flex-grow-1">{{ csApplySuccess }}</div>
+                  </div>
+                </div>
+              </div>
+
+            </template>
+
+          </div><!-- end codeStudioMode -->
+
+          <!-- Empty State -->
+          <div v-else-if="!currentTask" class="app-empty-state h-100 d-flex flex-column align-items-center justify-content-center px-3 py-4">
+            <div class="text-center mb-4">
+              <i class="bi bi-play-btn display-4 text-primary opacity-75 mb-3"></i>
+              <h4 class="fw-bold text-dark">视频创作控制台</h4>
+              <p class="text-muted mb-0 small mx-auto" style="max-width: 24rem">在左侧选择一个项目，点击任务即可开始工作。</p>
+            </div>
+            <div class="row g-3 justify-content-center w-100 app-empty-journey" style="max-width: 36rem">
+              <div class="col-4">
+                <div class="app-empty-step card h-100 border-0 shadow-sm text-center p-3">
+                  <i class="bi bi-folder2-open d-block fs-4 mb-2 text-primary"></i>
+                  <div class="fw-bold small mb-1">选择项目</div>
+                  <p class="small text-muted mb-0">从侧栏选择或新建</p>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="app-empty-step card h-100 border-0 shadow-sm text-center p-3">
+                  <i class="bi bi-sliders d-block fs-4 mb-2 text-primary"></i>
+                  <div class="fw-bold small mb-1">配置参数</div>
+                  <p class="small text-muted mb-0">设置平台与内容</p>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="app-empty-step card h-100 border-0 shadow-sm text-center p-3">
+                  <i class="bi bi-play-circle d-block fs-4 mb-2 text-primary"></i>
+                  <div class="fw-bold small mb-1">生成视频</div>
+                  <p class="small text-muted mb-0">一键渲染与导出</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Task Interface -->
+          <div v-else class="container-fluid p-0" style="max-width: 1000px; margin: 0 auto;">
+
+            <!-- 流程步骤 -->
+            <div class="task-card mb-3">
+              <div class="card-body py-3 px-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                  <div class="fw-bold text-primary"><i class="bi bi-signpost-2 me-2"></i>{{ workflowKindLabel }}</div>
+                  <span v-if="lastJobId && !running" class="badge bg-light text-dark border font-monospace small">{{ lastJobId.slice(0, 8) }}</span>
+                </div>
+                <div class="workflow-rail d-flex flex-wrap" v-if="workflowSteps.length">
+                  <div
+                    v-for="step in workflowSteps"
+                    :key="step.id"
+                    class="workflow-step rounded-3 border px-2 py-2 text-start"
+                    :class="workflowStepClass(step)"
+                  >
+                    <div class="small fw-bold">{{ step.title }}</div>
+                    <div class="text-muted" style="font-size:0.72rem;line-height:1.3">{{ step.hint }}</div>
+                  </div>
+                </div>
+                <div v-if="vizBackends.length" class="d-flex flex-wrap align-items-center gap-2 mt-2 small text-muted">
+                  <span>渲染后端：</span>
+                  <span v-for="vb in vizBackends" :key="vb.name" class="badge bg-light text-dark border" style="font-size:0.68rem">
+                    {{ vb.name }}<template v-if="vb.available"> ✓</template><template v-else> ✗</template>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <form @submit.prevent="runTask">
+              <!-- Config Card -->
+              <div class="task-card">
+                <div class="card-header bg-white py-3 px-4 border-bottom">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h5 class="m-0 fw-bold"><i class="bi bi-sliders2 me-2 text-primary"></i>参数设置</h5>
+                    </div>
+                    <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill" v-if="!loadingTask && taskParams.length > 0">
+                      {{ requiredParamsCount }} 项必填
+                    </span>
+                  </div>
+                </div>
+
+                <div class="card-body p-4">
+                  <div v-if="loadingTask" class="py-5 text-center">
+                    <div class="spinner-grow text-primary mb-3"></div>
+                    <div class="text-muted">正在读取任务定义...</div>
+                  </div>
+
+                  <div v-else-if="taskParams.length === 0" class="py-4 bg-light rounded">
+                    <template v-if="currentTask && currentTask.name === 'smoke_check'">
+                      <div class="text-center">
+                        <i class="bi bi-shield-check text-primary fs-3 d-block mb-2"></i>
+                        <p class="fw-bold mb-1">环境自检</p>
+                        <p class="text-muted small mb-3">验证项目骨架是否正确生成、入口函数是否可调用。<br>点击下方「开始运行」快速检查，通过后继续创作。</p>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @click="selectTask(currentProject, 'render')">
+                          <i class="bi bi-camera-reels me-1"></i>跳过，直接前往创作
+                        </button>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="text-center">
+                        <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2"></i>
+                        <p class="mb-0">此任务无需额外配置，点击下方「开始运行」直接执行。</p>
+                      </div>
+                    </template>
+                  </div>
+
+                  <div v-else>
+                    <!-- Onboarding guide: visible on render tasks when no screenplay loaded yet -->
+                    <div v-if="canAttachScreenplay() && !screenplaySession.screenplay && !allowRunWithoutScreenplay" class="alert alert-primary border-primary border-opacity-25 mb-4">
+                      <div class="d-flex align-items-start">
+                        <i class="bi bi-lightbulb-fill text-primary fs-5 me-3 mt-1 flex-shrink-0"></i>
+                        <div>
+                          <div class="fw-bold mb-2">创作引导</div>
+                          <div class="small">
+                            <div class="d-flex align-items-start mb-2">
+                              <span class="badge bg-primary rounded-circle me-2 flex-shrink-0" style="width:22px;height:22px;line-height:16px;font-size:12px">1</span>
+                              <span>设置下方<strong>平台</strong>与<strong>画质</strong>等基础参数</span>
+                            </div>
+                            <div class="d-flex align-items-start mb-2">
+                              <span class="badge bg-primary rounded-circle me-2 flex-shrink-0" style="width:22px;height:22px;line-height:16px;font-size:12px">2</span>
+                              <span>滚动到「脚本交付」区域，<strong>导入或编写你的内容剧本</strong>，定义视频要讲什么故事</span>
+                            </div>
+                            <div class="d-flex align-items-start">
+                              <span class="badge bg-primary rounded-circle me-2 flex-shrink-0" style="width:22px;height:22px;line-height:16px;font-size:12px">3</span>
+                              <span>一切就绪后点击「开始运行」提交渲染</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Common Parameters (Business & Visual) -->
+                    <h6 class="text-uppercase text-muted fw-bold small mb-3 ls-1">基础设置</h6>
+                    <div class="row g-4 mb-4">
+                      <div class="col-md-6" v-for="param in commonParams" :key="param.name">
+                        <div class="form-group">
+                          <label class="form-label param-label">
+                            {{ getFieldLabel(param.name) }}
+                            <span v-if="param.required" class="text-danger ms-1">*</span>
+                            <span class="param-unit" v-if="getFieldUnit(param.name)">{{ getFieldUnit(param.name) }}</span>
+                          </label>
+
+                          <!-- Select Controller -->
+                          <select
+                            v-if="getFieldType(param.name) === 'select'"
+                            class="form-select"
+                            v-model="formValues[param.name]"
+                          >
+                            <option v-for="opt in getFieldOptions(param.name)" :value="opt.value">{{ opt.label }}</option>
+                          </select>
+
+                          <!-- Switch Controller -->
+                          <div v-else-if="param.type === 'bool'" class="form-check form-switch mt-1">
+                            <input class="form-check-input" type="checkbox" :id="param.name" v-model="formValues[param.name]" style="width: 3em; height: 1.5em;">
+                            <label class="form-check-label ms-2 pt-1 small text-muted" :for="param.name">
+                              {{ formValues[param.name] ? '开启' : '关闭' }}
+                            </label>
+                          </div>
+
+                          <!-- Number/Text Controller -->
+                          <input
+                            v-else
+                            :type="param.type === 'int' || param.type === 'float' ? 'number' : 'text'"
+                            :step="param.type === 'float' ? '0.0001' : '1'"
+                            class="form-control"
+                            v-model="formValues[param.name]"
+                            :placeholder="param.default !== null ? String(param.default) : '请输入'"
+                            :class="{ 'is-invalid': param.required && isEmpty(formValues[param.name]) }"
+                          >
+
+                          <div class="form-text small" v-if="getFieldTip(param.name)">
+                            <i class="bi bi-info-circle me-1"></i>{{ getFieldTip(param.name) }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Advanced Parameters Toggle -->
+                    <div v-if="advancedParams.length > 0">
+                      <div class="d-flex align-items-center mb-3">
+                        <div class="border-bottom flex-grow-1"></div>
+                        <div class="mx-3 advanced-toggle" @click="showAdvanced = !showAdvanced">
+                          <i class="bi" :class="showAdvanced ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                          <span class="ms-1">{{ showAdvanced ? '收起高级选项' : '展开高级选项 (分辨率、帧率等)' }}</span>
+                        </div>
+                        <div class="border-bottom flex-grow-1"></div>
+                      </div>
+
+                      <div v-if="showAdvanced" class="row g-4 animate-fade">
+                        <div class="col-md-4" v-for="param in advancedParams" :key="param.name">
+                          <div class="form-group">
+                            <label class="form-label param-label small text-muted">{{ param.name }}</label>
+                            <input
+                              type="text"
+                              class="form-control form-control-sm"
+                              v-model="formValues[param.name]"
+                              :placeholder="String(param.default || '')"
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 脚本交付：JSON 文件 / 粘贴，凡成片任务均可附加（后端按项目校验） -->
+                    <div v-if="canAttachScreenplay()" class="mt-4 pt-4 border-top">
+                      <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                          <h6 class="text-uppercase text-muted fw-bold small mb-1">脚本交付（JSON）</h6>
+                          <div class="small text-muted">成片任务<strong>默认必须</strong>加载符合 <code>Screenplay</code> 的 JSON；后端依剧本驱动节拍与叙事。若确无剧本，请勾选下方「不使用剧本」并知悉将仅用表单参数按各项目默认逻辑出片。</div>
+                        </div>
+                        <span v-if="screenplaySession.screenplay" class="badge bg-success bg-opacity-10 text-success">已加载剧本</span>
+                      </div>
+                      <div
+                        v-if="canAttachScreenplay() && !screenplaySession.screenplay && !allowRunWithoutScreenplay"
+                        class="alert alert-warning small py-2 mb-2 mb-md-3"
+                      >
+                        <i class="bi bi-exclamation-triangle me-1"></i>未加载剧本时无法点击「开始运行」。请导入/粘贴并「解析并加载」，或勾选「本次不使用剧本…」。
+                      </div>
+                      <div class="form-check mb-3" v-if="canAttachScreenplay()">
+                        <input class="form-check-input" type="checkbox" id="allowNoScreenplay" v-model="allowRunWithoutScreenplay">
+                        <label class="form-check-label small" for="allowNoScreenplay">
+                          本次不使用 Screenplay JSON，后端仅使用上方表单参数（如 platform、topic、style 等）按项目默认管线渲染
+                        </label>
+                      </div>
+                      <div class="d-flex flex-wrap gap-2 mb-2">
+                        <label class="btn btn-outline-secondary btn-sm mb-0">
+                          <i class="bi bi-file-earmark-arrow-up me-1"></i>从文件导入
+                          <input type="file" accept=".json,application/json" class="d-none" @change="onScreenplayFileChange">
+                        </label>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="loadSampleScreenplayToDraft">
+                          <i class="bi bi-journal-text me-1"></i>加载示例到编辑区
+                        </button>
+                        <a class="btn btn-link btn-sm py-0" href="/static/sample_screenplay.json" target="_blank" rel="noopener">查看示例 JSON</a>
+                      </div>
+                      <div class="mb-2">
+                        <textarea class="form-control font-monospace small" rows="6" v-model="screenplayJsonDraft" placeholder="在此粘贴剧本 JSON，或从文件导入…"></textarea>
+                      </div>
+                      <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                        <button type="button" class="btn btn-primary btn-sm" @click="applyScreenplayJsonFromDraft">
+                          <i class="bi bi-check2-circle me-1"></i>解析并加载
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" @click="clearAttachedScreenplay" :disabled="!screenplaySession.screenplay && !screenplayJsonDraft">
+                          清除
+                        </button>
+                      </div>
+                      <div v-if="screenplayAttachError" class="alert alert-warning small py-2 mb-2">{{ screenplayAttachError }}</div>
+                      <div v-if="screenplaySession.screenplay" class="alert alert-light border small py-2 mb-0">
+                        当前：<strong>{{ screenplaySession.screenplay.title }}</strong> ｜ {{ (screenplaySession.screenplay.scenes || []).length }} 个 scene ｜ {{ screenplaySession.generatedAt || '' }}
+                      </div>
+                    </div>
+
+                    <!-- Screenplay Workflow (AI) -->
+                    <div v-if="supportsScreenplayWorkflow()" class="mt-4 pt-4 border-top">
+                      <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                          <h6 class="text-uppercase text-muted fw-bold small mb-1">AI 生成剧本（可选）</h6>
+                          <div class="small text-muted">调用已配置的 Provider 生成剧本、可局部改稿，再点击「开始运行」渲染视频。</div>
+                        </div>
+                        <span v-if="screenplaySession.screenplay" class="badge bg-success bg-opacity-10 text-success">已生成剧本</span>
+                      </div>
+
+                      <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-4">
+                          <label class="form-label param-label">编剧 Provider</label>
+                          <select class="form-select" v-model="screenplaySession.provider" :disabled="screenplaySession.previewLoading || screenplaySession.saveLoading">
+                            <option value="">使用默认</option>
+                            <option v-for="provider in screenplaySession.providers" :key="provider.name" :value="provider.name">
+                              {{ provider.name }}{{ provider.is_default ? '（默认）' : '' }}
+                            </option>
+                          </select>
+                        </div>
+                        <div class="col-md-8 d-flex gap-2">
+                          <button type="button" class="btn btn-outline-primary" @click="generateScreenplayPreview" :disabled="screenplaySession.previewLoading || !canGenerateScreenplay()">
+                            <span v-if="screenplaySession.previewLoading" class="spinner-border spinner-border-sm me-2"></span>
+                            <i v-else class="bi bi-magic me-2"></i>
+                            {{ screenplaySession.screenplay ? '重新生成剧本' : '生成剧本预览' }}
+                          </button>
+                          <button type="button" class="btn btn-outline-secondary" @click="saveScreenplayEdits" :disabled="screenplaySession.saveLoading || !screenplaySession.screenplay">
+                            <span v-if="screenplaySession.saveLoading" class="spinner-border spinner-border-sm me-2"></span>
+                            <i v-else class="bi bi-pencil-square me-2"></i>
+                            保存改稿
+                          </button>
+                        </div>
+                      </div>
+
+                      <div v-if="screenplaySession.error" class="alert alert-danger small py-2">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ screenplaySession.error }}
+                      </div>
+
+                      <div v-if="screenplaySession.screenplay" class="screenplay-editor">
+                        <div class="alert alert-light border small d-flex justify-content-between align-items-center">
+                          <div>
+                            <div class="fw-bold">当前 Provider：{{ screenplaySession.providerUsed || 'unknown' }}</div>
+                            <div class="text-muted">{{ screenplaySession.fallbackUsed ? '本次生成触发了 fallback 机制。' : '本次生成未触发 fallback。' }}</div>
+                          </div>
+                          <div class="text-muted">{{ screenplaySession.generatedAt || '' }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                          <label class="form-label param-label">剧本标题</label>
+                          <input type="text" class="form-control" v-model="screenplaySession.screenplay.title">
+                        </div>
+
+                        <div class="mb-3">
+                          <label class="form-label param-label">一句话梗概</label>
+                          <textarea class="form-control" rows="2" v-model="screenplaySession.screenplay.logline"></textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                          <label class="form-label param-label mb-0">分镜脚本</label>
+                          <span class="small text-muted">共 {{ screenplaySession.screenplay.scenes.length }} 个 scene</span>
+                        </div>
+
+                        <div class="d-flex flex-column gap-3">
+                          <div class="screenplay-scene-card p-3" v-for="scene in screenplaySession.screenplay.scenes" :key="scene.id">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                              <div>
+                                <div class="fw-bold">{{ scene.id }}</div>
+                                <div class="small text-muted">预计时长：{{ scene.duration_est }}s ｜ 情绪：{{ scene.mood }}</div>
+                              </div>
+                              <span class="badge bg-light text-dark border">{{ scene.visual_prompt }}</span>
+                            </div>
+                            <label class="form-label small text-muted">旁白 / 台词</label>
+                            <textarea class="form-control" rows="3" v-model="scene.narration" @input="markSceneDirty(scene.id)"></textarea>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <div class="card-footer bg-white p-4 border-top">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <a href="#" class="text-decoration-none text-muted small" @click.prevent="resetForm">
+                      <i class="bi bi-arrow-counterclockwise"></i> 重置所有参数
+                    </a>
+                    <button type="submit" class="btn btn-primary px-5 py-2 shadow-sm fw-bold" :disabled="running || loadingTask || !canStartRun">
+                      <span v-if="running" class="spinner-border spinner-border-sm me-2"></span>
+                      <i v-else class="bi bi-rocket-takeoff-fill me-2"></i>
+                      {{ running ? '正在处理...' : '开始运行' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            <!-- 任务结果验收（闭环）：成功展示产出路径；失败可重试 -->
+            <div v-if="showOutcomePanel" class="task-card outcome-card mb-3" :class="taskSuccess ? 'border-success' : 'border-danger'">
+              <div class="card-header py-3 px-4 d-flex flex-wrap justify-content-between align-items-center gap-2" :class="taskSuccess ? 'bg-success bg-opacity-10' : 'bg-danger bg-opacity-10'">
+                <div>
+                  <div class="fw-bold"><i class="bi me-2" :class="taskSuccess ? 'bi-check-circle-fill text-success' : 'bi-x-octagon-fill text-danger'"></i>
+                    {{ taskSuccess ? '任务已完成 — 验收产出' : '任务失败' }}
+                  </div>
+                  <div class="small text-muted mt-1" v-if="taskSuccess">请核对下列文件路径；可复制后在资源管理器中打开（本页无法直接播放本地磁盘文件）。</div>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  <button v-if="!taskSuccess" type="button" class="btn btn-outline-danger btn-sm" @click="retryLastRun">
+                    <i class="bi bi-arrow-repeat me-1"></i>使用当前参数重试
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" @click="dismissOutcome">
+                    收起横幅
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-4">
+                <div v-if="!taskSuccess && lastFailure" class="alert alert-danger small py-2 mb-3">
+                  <div class="fw-semibold mb-1">错误信息</div>
+                  <div class="font-monospace" style="white-space:pre-wrap;word-break:break-word">{{ lastFailure.error }}</div>
+                  <div v-if="lastFailure.selfCorrection" class="mt-2 pt-2 border-top border-danger border-opacity-25">
+                    <div class="fw-semibold mb-1">Self-Correction 诊断</div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                      <span class="badge" :class="lastFailure.selfCorrection.auto_correctable ? 'bg-warning text-dark' : 'bg-secondary'">{{ lastFailure.selfCorrection.error_category }}</span>
+                      <span v-if="lastFailure.selfCorrection.auto_correctable" class="small text-warning-emphasis">已尝试自动修复但仍失败</span>
+                      <span v-else class="small text-muted">需要人工介入</span>
+                    </div>
+                    <div v-if="lastFailure.selfCorrection.suggested_fix" class="small"><strong>建议：</strong>{{ lastFailure.selfCorrection.suggested_fix }}</div>
+                    <div v-if="lastFailure.selfCorrection.correction_report" class="small mt-1 text-muted">共尝试 {{ lastFailure.selfCorrection.correction_report.total_attempts }} 次自动修复</div>
+                  </div>
+                  <div v-if="lastFailure.jobLog && lastFailure.jobLog.length" class="mt-2 pt-2 border-top border-danger border-opacity-25">
+                    <div class="fw-semibold mb-1">Job 日志（节选）</div>
+                    <div v-for="(line, li) in lastFailure.jobLog.slice(-8)" :key="li" class="small opacity-75">{{ line }}</div>
+                  </div>
+                </div>
+
+                <div v-if="taskSuccess && jobArtifacts.length" class="mb-3">
+                  <div class="fw-semibold small text-muted text-uppercase mb-2">产出文件</div>
+                  <div v-for="(art, ai) in jobArtifacts" :key="ai" class="d-flex flex-wrap align-items-start gap-2 py-2 border-bottom border-light artifact-row">
+                    <div class="flex-grow-1">
+                      <span class="badge bg-secondary me-2">{{ art.label }}</span>{{ art.path }}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0" @click="copyText(art.path)">复制路径</button>
+                  </div>
+                </div>
+
+                <div v-if="taskSuccess && jobSelfCorrection" class="alert alert-warning small py-2 mb-3">
+                  <div class="fw-semibold mb-1"><i class="bi bi-arrow-repeat me-1"></i>自动修复记录</div>
+                  <div class="small">本次渲染经过 <strong>{{ jobSelfCorrection.total_attempts }}</strong> 次自动重试后成功完成。</div>
+                  <div v-if="jobSelfCorrection.attempts && jobSelfCorrection.attempts.length" class="mt-1">
+                    <div v-for="(att, i) in jobSelfCorrection.attempts" :key="i" class="small text-muted">
+                      #{{ i + 1 }}: {{ att.category }} — {{ att.fix }}
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="taskSuccess && !jobArtifacts.length && currentJobResult && typeof currentJobResult === 'object'" class="mb-0">
+                  <div class="fw-semibold small text-muted text-uppercase mb-2">返回数据（无文件路径字段时可核对键值）</div>
+                  <pre class="bg-light border rounded p-3 small mb-0" style="max-height:240px;overflow:auto">{{ JSON.stringify(currentJobResult, null, 2) }}</pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- Scene schedule（节拍表） -->
+            <div v-if="currentSceneSchedule" class="task-card">
+              <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-bold"><i class="bi bi-diagram-3 me-2 text-primary"></i>Scene Schedule</div>
+                  <div class="small text-muted mt-1">当前任务的 scene 级调度、时长与 pacing token</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-primary bg-opacity-10 text-primary">{{ currentSceneSchedule.scenes?.length || 0 }} scenes</span>
+                  <a
+                    v-if="currentJobResult && currentJobResult.scene_schedule_download_url"
+                    class="btn btn-outline-secondary btn-sm"
+                    :href="currentJobResult.scene_schedule_download_url"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    <i class="bi bi-download me-1"></i>下载 Sidecar
+                  </a>
+                  <button class="btn btn-link btn-sm text-decoration-none" @click="showSceneLogs = !showSceneLogs" v-if="currentSceneSchedule.log_lines && currentSceneSchedule.log_lines.length">
+                    {{ showSceneLogs ? '隐藏日志' : '查看日志' }}
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-4">
+                <div class="row g-3 mb-3 small text-muted">
+                  <div class="col-md-4"><strong>总时长：</strong>{{ formatScheduleSeconds(currentSceneSchedule.total_seconds) }}</div>
+                  <div class="col-md-4"><strong>总帧数：</strong>{{ currentSceneSchedule.total_frames }}</div>
+                  <div class="col-md-4" v-if="currentJobResult && currentJobResult.scene_schedule_path"><strong>Metadata：</strong>{{ currentJobResult.scene_schedule_path }}</div>
+                </div>
+
+                <div v-if="currentSceneSchedule.phases && currentSceneSchedule.phases.length" class="d-flex flex-wrap gap-2 mb-3">
+                  <span
+                    v-for="phase in currentSceneSchedule.phases"
+                    :key="phase.role + '-' + phase.start_frame"
+                    class="schedule-phase-chip"
+                    :class="phaseBadgeClass(phase.role)"
+                  >
+                    <span>{{ phase.role }}</span>
+                    <span>{{ formatScheduleSeconds(phase.start_seconds) }} → {{ formatScheduleSeconds(phase.end_seconds) }}</span>
+                  </span>
+                </div>
+
+                <div v-if="!currentSceneSchedule.scenes || currentSceneSchedule.scenes.length === 0" class="schedule-empty text-center py-4 text-muted">
+                  <i class="bi bi-diagram-3 mb-2 d-block fs-3 opacity-50"></i>
+                  当前任务未返回 scene schedule scenes。
+                </div>
+
+                <div v-else class="table-responsive">
+                  <table class="table table-sm align-middle schedule-table">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Scene</th>
+                        <th>阶段</th>
+                        <th>情绪</th>
+                        <th>时间区间</th>
+                        <th>帧区间</th>
+                        <th>Token</th>
+                        <th>旁白摘要</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template v-for="scene in currentSceneSchedule.scenes || []" :key="scheduleSceneKey(scene)">
+                        <tr class="schedule-scene-row" @click="toggleSceneDetail(scene)">
+                          <td>
+                            <div class="fw-semibold">{{ scene.scene_label || scene.scene_id }}</div>
+                            <div class="small text-muted">{{ scene.scene_id }}</div>
+                          </td>
+                          <td>
+                            <span class="schedule-phase-chip" :class="phaseBadgeClass(scene.role)">{{ scene.role }}</span>
+                          </td>
+                          <td>
+                            <span class="badge bg-light text-dark border">{{ scene.mood || 'neutral' }}</span>
+                          </td>
+                          <td>{{ formatScheduleSeconds(scene.start_seconds) }} → {{ formatScheduleSeconds(scene.end_seconds) }}</td>
+                          <td>{{ scene.start_frame }} → {{ scene.end_frame }}</td>
+                          <td><span class="badge text-bg-dark schedule-token-badge">{{ scene.pacing_token }}</span></td>
+                          <td>
+                            <div>{{ scene.narration }}</div>
+                            <div class="small text-muted mt-1">点击查看详情</div>
+                          </td>
+                        </tr>
+                        <tr v-if="expandedSceneKey === scheduleSceneKey(scene)" class="schedule-scene-detail">
+                          <td colspan="7">
+                            <div class="row g-3 small">
+                              <div class="col-md-4"><strong>Scene ID：</strong>{{ scene.scene_id }}</div>
+                              <div class="col-md-4"><strong>持续帧数：</strong>{{ scene.duration_frames }}</div>
+                              <div class="col-md-4"><strong>持续时间：</strong>{{ sceneDurationLabel(scene) }}</div>
+                              <div class="col-md-6"><strong>情绪：</strong><div class="mt-1 text-muted">{{ scene.mood || 'neutral' }}</div></div>
+                              <div class="col-md-6"><strong>Visual Prompt：</strong><div class="mt-1 text-muted">{{ scene.visual_prompt || '无' }}</div></div>
+                              <div class="col-12"><strong>完整旁白：</strong><div class="mt-1 text-muted">{{ scene.narration || '无' }}</div></div>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div v-if="showSceneLogs && currentSceneSchedule.log_lines && currentSceneSchedule.log_lines.length" class="mt-3">
+                  <div class="fw-semibold small text-muted mb-2 text-uppercase">Scene Schedule Logs</div>
+                  <div class="schedule-log-box">
+                    <div v-for="(line, idx) in currentSceneSchedule.log_lines" :key="idx">{{ line }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="task-card">
+              <div class="card-header bg-white py-2 px-4 d-flex justify-content-between align-items-center">
+                <span class="fw-bold small text-muted text-uppercase ls-1">运行日志</span>
+                <div>
+                  <span class="badge bg-success bg-opacity-10 text-success me-2" v-if="taskSuccess">执行成功</span>
+                  <button class="btn btn-link btn-sm text-muted text-decoration-none p-0" @click="logs = []" v-if="logs.length > 0">清屏</button>
+                </div>
+              </div>
+              <div class="log-window" ref="logWindow">
+                <div v-if="logs.length === 0" class="text-muted text-center py-5 opacity-50 user-select-none">
+                  <i class="bi bi-terminal mb-3 display-1 d-block opacity-25"></i>
+                  <small>等待任务启动...</small>
+                </div>
+                <div v-for="(log, i) in logs" :key="i" class="log-entry" :class="getLogClass(log.msg)">
+                  <span class="log-ts text-nowrap select-none">{{ log.ts }}</span>
+                  <span class="log-msg">{{ log.msg }}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </main>
+
+    <!-- 使用说明：全局信息架构（侧栏分区 + 主区微流程 + 任务分组） -->
+    <div class="modal fade" id="guideModal" tabindex="-1" aria-hidden="true" aria-labelledby="guideModalTitle">
+      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-light border-0">
+            <h5 class="modal-title fw-bold" id="guideModalTitle"><i class="bi bi-map me-2 text-primary"></i>控制台使用说明</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          </div>
+          <div class="modal-body p-4 guide-modal-body">
+            <section class="mb-4">
+              <h6 class="fw-bold text-primary"><i class="bi bi-layout-sidebar me-1"></i>侧栏：两大分区</h6>
+              <ul class="small text-muted mb-0 ps-3">
+                <li><strong>项目与任务</strong>：<strong>新建项目</strong>（磁盘脚手架）与<strong>刷新项目列表</strong>（重新请求 <code>GET /api/registry</code>）只出现在此分区。任务按类型分组（自检与预览 / 成片与导出 / 后台服务 / 其他），与主区「配置→执行→验收」是不同层级——前者是<strong>找入口</strong>，后者是<strong>单次运行</strong>的步骤。</li>
+                <li><strong>意图会话</strong>：<strong>新建会话</strong>对应 <code>POST /api/v1/sessions</code>；在 <code>POST /api/v1/agent/compile</code> 中携带 <code>session_id</code> 后，可在此查看历史与标准模板 JSON。顶栏仅保留「使用说明」，不再放置与 Registry 混用的刷新按钮。</li>
+              </ul>
+            </section>
+            <section class="mb-4">
+              <h6 class="fw-bold text-primary"><i class="bi bi-kanban me-1"></i>主区：单次任务流程</h6>
+              <p class="small text-muted mb-2">选中任务后，卡片内步骤条表示<strong>当前这一次运行</strong>：配置参数与剧本 → 执行（后台 Job）→ 验收结果与成片路径。</p>
+              <p class="small text-muted mb-0">长驻「启动 API」类任务请在终端执行，避免阻塞 Web 后台。</p>
+            </section>
+            <section>
+              <h6 class="fw-bold text-primary"><i class="bi bi-question-circle me-1"></i>常见问题</h6>
+              <p class="small text-muted mb-0">项目列表支持搜索与排序；排序会记在浏览器本地。若筛选后看不到当前选中项目，侧栏会提示清空搜索。</p>
+            </section>
+          </div>
+          <div class="modal-footer bg-light border-0">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">知道了</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Project Modal -->
+    <div class="modal fade" id="createProjectModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title fw-bold">新建视频项目</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4">
+            <form id="createProjectForm" @submit.prevent="createProject">
+              <div class="mb-3">
+                <label for="projName" class="form-label fw-bold">项目名称 (英文 ID)</label>
+                <input type="text" class="form-control" id="projName" v-model="newProject.name" placeholder="例如: stock_analysis" required pattern="[a-zA-Z0-9_]+" title="仅允许字母、数字和下划线">
+                <div class="form-text small">将用作文件夹名称，仅支持英文、数字和下划线。</div>
+              </div>
+              <div class="mb-3">
+                <label for="projDesc" class="form-label fw-bold">项目描述</label>
+                <input type="text" class="form-control" id="projDesc" v-model="newProject.description" placeholder="简单描述项目用途...">
+              </div>
+              <div v-if="createError" class="alert alert-danger small py-2">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ createError }}
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-link text-muted text-decoration-none" data-bs-dismiss="modal">取消</button>
+            <button type="submit" form="createProjectForm" class="btn btn-primary px-4" :disabled="creatingProject || !newProject.name">
+              <span v-if="creatingProject" class="spinner-border spinner-border-sm me-2"></span>
+              {{ creatingProject ? '创建中...' : '立即创建' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Project Modal -->
+    <div class="modal fade" id="deleteProjectModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-2"></i>删除项目</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4">
+            <p class="mb-2">将<strong>永久删除</strong>目录 <code class="user-select-all">projects/{{ deleteTarget.name }}</code> 及其中全部文件，操作不可撤销。</p>
+            <p class="small text-muted mb-3">内置参考项目（带锁图标）不提供此项操作。删除前请关闭占用该目录的 IDE/终端任务。</p>
+            <div class="mb-3">
+              <label class="form-label">请输入项目 ID 以确认：<strong class="font-monospace">{{ deleteTarget.name }}</strong></label>
+              <input type="text" class="form-control font-monospace" v-model="deleteConfirmInput" placeholder="与上方 ID 完全一致" autocomplete="off">
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="deleteAck" v-model="deleteAckDanger">
+              <label class="form-check-label small" for="deleteAck">我确认删除并了解后果</label>
+            </div>
+            <div v-if="deleteError" class="alert alert-danger small py-2 mb-0">{{ deleteError }}</div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-link text-muted text-decoration-none" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-danger px-3" :disabled="!canConfirmDelete || deletingProject" @click="confirmDeleteProject">
+              <span v-if="deletingProject" class="spinner-border spinner-border-sm me-2"></span>
+              {{ deletingProject ? '删除中…' : '永久删除' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title fw-bold"><i class="bi bi-sliders me-2"></i>全局配置</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4">
+             <form id="settingsForm" @submit.prevent="saveSettings" novalidate>
+
+                <div class="section-heading"><span>默认视频参数</span></div>
+                <div class="ps-3">
+                <div class="row g-3 mb-4">
+                   <div class="col-md-6">
+                      <label class="form-label small">
+                        分辨率 <span class="text-muted fw-normal">（宽 × 高，单位 px）</span>
+                        <span class="badge bg-light border text-secondary ms-1" style="font-size:0.6rem">含默认值</span>
+                      </label>
+                      <select class="form-select font-monospace"
+                        :value="(settings.video_width && settings.video_height) ? settings.video_width + 'x' + settings.video_height : ''"
+                        @change="applyResolution($event.target.value)">
+                        <option value="" disabled>— 请选择分辨率 —</option>
+                        <option value="1920x1080">1920 × 1080 — B站横屏 · 1080p</option>
+                        <option value="1280x720">1280 × 720 — 横屏 · 720p</option>
+                        <option value="1080x1920">1080 × 1920 — 抖音 / B站竖屏</option>
+                        <option value="1080x1350">1080 × 1350 — 小红书竖屏</option>
+                        <option value="3840x2160">3840 × 2160 — 4K 横屏</option>
+                        <option value="2560x1440">2560 × 1440 — 2K 横屏</option>
+                        <option value="720x1280">720 × 1280 — 竖屏 · 720p</option>
+                      </select>
+                   </div>
+                   <div class="col-md-3">
+                      <label class="form-label small">FPS <span class="badge bg-light border text-secondary ms-1" style="font-size:0.6rem">含默认值</span></label>
+                      <select class="form-select" v-model.number="settings.video_fps">
+                         <option :value="24">24</option>
+                         <option :value="30">30</option>
+                         <option :value="60">60</option>
+                      </select>
+                   </div>
+                   <div class="col-md-3">
+                      <label class="form-label small">默认时长 (s) <span class="badge bg-light border text-secondary ms-1" style="font-size:0.6rem">含默认值</span></label>
+                      <input type="number" class="form-control" v-model.number="settings.video_total_duration"
+                        :class="{'is-invalid': settings._durationError}"
+                        min="1" max="7200" step="1" required
+                        @input="settings._durationError = !(settings.video_total_duration >= 1 && settings.video_total_duration <= 7200)">
+                      <div class="invalid-feedback">时长须在 1–7200 秒（120 分钟）之间，不能为 0 或负值</div>
+                   </div>
+                </div>
+                <div class="form-text small text-muted mt-n2 mb-2">常用预设：B站横屏 1920×1080 · 60fps；抖音/B站竖屏 1080×1920 · 30fps；小红书 1080×1350 · 30fps</div>
+                </div><!-- /section-默认视频参数 -->
+
+                <div class="section-heading mt-2"><span>AI 接口配置</span></div>
+                <div class="ps-3">
+                <div class="alert alert-light border small mb-3 py-2">
+                   <i class="bi bi-shield-lock me-1 text-muted"></i> 密钥仅保存在本地 <code>.env</code> 文件，填写后直接点「保存配置」即可生效。
+                </div>
+
+                <!-- Base URL 在前：先知道地址，再填凭证，符合认知顺序 -->
+                <div class="mb-3">
+                   <label class="form-label small">Base URL <span class="text-danger">*</span> <span class="text-muted fw-normal">（服务地址）</span></label>
+                   <input type="text" class="form-control font-monospace" v-model="settings.openai_base_url"
+                     placeholder="https://api.openai.com/v1" autocomplete="off">
+                   <div class="form-text small">OpenAI 兼容协议地址。例：DashScope 填 <code>https://coding.dashscope.aliyuncs.com/v1</code></div>
+                </div>
+
+                <div class="mb-3">
+                   <label class="form-label small">API Key <span class="text-danger">*</span></label>
+                   <div class="input-group">
+                     <input :type="settings._showApiKey ? 'text' : 'password'" class="form-control font-monospace"
+                       v-model="settings.openai_api_key" placeholder="sk-..." autocomplete="new-password">
+                     <button class="btn btn-outline-secondary" type="button"
+                       @click="toggleShowApiKey()"
+                       :title="settings._showApiKey ? '隐藏' : '显示明文'">
+                       <i :class="settings._showApiKey ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+                     </button>
+                   </div>
+                   <div class="form-text small">点击眼睛图标可查看完整明文；重新输入即可覆盖已保存的值。</div>
+                </div>
+
+                <!-- 模型名称：文本输入为主，自动拉取为可选次操作 -->
+                   <div class="mb-3">
+                   <label class="form-label small">模型名称 <span class="text-danger">*</span> <span class="text-muted fw-normal">（Model ID）</span></label>
+                   <div class="input-group">
+                     <input type="text" class="form-control font-monospace" v-model="settings.openai_model"
+                       placeholder="如 qwen-turbo、qwen-plus、gpt-4o-mini" list="modelDatalist"
+                       @input="settings.validationError = false; settings.validationSuccess = false">
+                     <datalist id="modelDatalist">
+                       <option v-for="m in (settings.available_models || [])" :value="m" :key="m"></option>
+                     </datalist>
+                     <button class="btn btn-outline-secondary" type="button"
+                       @click="validateOpenAI" :disabled="settings.validating || !settings.openai_base_url"
+                       title="尝试连接接口验证模型（可选）">
+                       <span v-if="settings.validating" class="spinner-border spinner-border-sm"></span>
+                       <i v-else class="bi bi-arrow-repeat"></i>
+                     </button>
+                   </div>
+                   <div class="form-text small d-flex gap-2 align-items-center mt-1">
+                     <span v-if="settings.validationSuccess" class="text-success">
+                       <i class="bi bi-check-circle me-1"></i>已验证通过{{ (settings.available_models||[]).length > 0 ? '，已拉取 ' + (settings.available_models||[]).length + ' 个可用模型' : '（不展示模型列表，直接输入 ID 即可）' }}
+                     </span>
+                     <template v-else-if="settings.validationError">
+                       <span class="text-danger flex-grow-1">
+                         <i class="bi bi-exclamation-triangle me-1"></i>{{ settings.validationMessage }}
+                       </span>
+                       <button type="button" class="btn btn-sm btn-link text-muted p-0 lh-1" style="font-size:0.8rem"
+                         @click="settings.validationError=false;settings.validationSuccess=false" title="关闭">&times;</button>
+                     </template>
+                     <span v-else class="text-muted">填写提供商支持的 Model ID；点右侧 <i class="bi bi-arrow-repeat"></i> 可验证模型是否可用</span>
+                   </div>
+                </div>
+
+                <div class="mb-3">
+                   <label class="form-label small">Pexels API Key <span class="badge bg-light border text-secondary ms-1" style="font-size:0.6rem">可选</span></label>
+                   <div class="input-group">
+                     <input :type="settings._showPexelsKey ? 'text' : 'password'" class="form-control font-monospace"
+                       v-model="settings.pexels_api_key" placeholder="不填则跳过网络素材搜索" autocomplete="new-password">
+                     <button class="btn btn-outline-secondary" type="button"
+                       @click="toggleShowPexelsKey()"
+                       :title="settings._showPexelsKey ? '隐藏' : '显示明文'">
+                       <i :class="settings._showPexelsKey ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+                     </button>
+                   </div>
+                   <div class="form-text small">不填也能正常生成视频，仅影响是否自动配匹 Pexels 高清影弹素材。</div>
+                </div>
+                </div><!-- /section-AI接口配置 -->
+
+                <div class="section-heading mt-2"><span>剧本生成</span></div>
+                <div class="ps-3">
+                <div class="mb-3">
+                   <label class="form-label small">默认 Provider <span class="badge bg-light border text-secondary ms-1" style="font-size:0.6rem">含默认值</span></label>
+                   <select class="form-select" v-model="settings.screenplay_provider_default">
+                      <option value="mock">本地模板 (Mock) — 无需 API Key，适合首次体验</option>
+                      <option value="openai_compatible">OpenAI 兼容协议 — 接入 DashScope / OpenAI 等真实 AI</option>
+                   </select>
+                   <div class="form-text small">首次使用建议保留<code>本地模板</code>；配置好 AI 接口后再切换为 <code>OpenAI 兼容协议</code>。</div>
+                </div>
+                </div><!-- /section-剧本生成 -->
+
+             </form>
+          </div>
+          <div class="px-3 pb-0 pt-2">
+            <div v-if="settings._saveSuccess" class="alert alert-success py-2 mb-2 d-flex align-items-center gap-2" role="alert" style="font-size:0.875rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="flex-shrink-0" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/></svg>
+              {{ settings._saveMessage }}
+            </div>
+            <div v-if="settings._saveError" class="alert alert-danger py-2 mb-2 d-flex align-items-center gap-2" role="alert" style="font-size:0.875rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="flex-shrink-0" viewBox="0 0 16 16"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
+              {{ settings._saveMessage }}
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-link text-muted text-decoration-none" data-bs-dismiss="modal">取消</button>
+            <button type="submit" form="settingsForm" class="btn btn-primary px-4" :disabled="settingsLoading">
+              <span v-if="settingsLoading" class="spinner-border spinner-border-sm me-2"></span>
+              {{ settingsLoading ? '保存中...' : '保存配置' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- Vue 3 & Bootstrap：使用本地静态资源，避免刷新时外网 CDN 偶发失败导致 {{ }} 未编译 -->
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/vue.global.prod.js"></script>
+
+    <script src="/static/js/dashboard-app.js"></script>
+  </body>
+</html>
+
+
+

@@ -1,33 +1,20 @@
 """
-数据可视化视频：默认后端 **Matplotlib**（帧动画 / 与 FFmpeg 衔接成熟）；
-可选 **Plotly 静态导出**（见 `backends/plotly_static.py`，需 kaleido）。
+Shared Visualization Module
 
-详见 `docs/DATA_VIZ_VIDEO_ARCHITECTURE.md`。
+数据可视化核心功能，基于 Plotly
 """
 
-from shared.visualization.protocol import VizRenderBackend
-from shared.visualization.registry import (
-    default_backend_name,
-    get_backend,
-    list_backends,
-    register_backend,
+from .plotly_viz import (
+    PlotlyVisualizer,
+    ChartConfig,
+    quick_scatter,
+    quick_line
 )
-from shared.visualization.render_cache import render_cache_dir, sanitize_cache_segment
-from shared.visualization.runtime import cache_key_components_from_env, frame_request_from_env
-from shared.visualization.types import BackendName, FrameRequest, VideoFormatSpec, VizSceneRef
 
+__version__ = "1.0.0"
 __all__ = [
-    "BackendName",
-    "FrameRequest",
-    "VideoFormatSpec",
-    "VizSceneRef",
-    "VizRenderBackend",
-    "cache_key_components_from_env",
-    "default_backend_name",
-    "frame_request_from_env",
-    "get_backend",
-    "list_backends",
-    "register_backend",
-    "render_cache_dir",
-    "sanitize_cache_segment",
+    'PlotlyVisualizer',
+    'ChartConfig',
+    'quick_scatter',
+    'quick_line'
 ]

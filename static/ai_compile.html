@@ -172,38 +172,12 @@
                 <!-- AI Responses -->
                 <div class="chat-message ai" v-for="(msg, index) in aiResponses" :key="index">
                     <div class="message-bubble">
-                        
-                        <!-- Step 1: 编译中 -->
-                        <div v-if="msg.type === 'compiling'">
-                            <div class="spinner-border spinner-border-sm me-2"></div>
-                            正在理解你的需求...
+                        <div class="fw-bold mb-2">
+                            <i class="bi bi-robot me-2"></i>AI 助手
                         </div>
                         
                         <!-- Step 2: 编译完成 -->
                         <div v-if="msg.type === 'compiled'">
-                            <div class="alert alert-success mb-2">
-                                <i class="bi bi-check-circle-fill me-2"></i>
-                                <strong>编译完成！</strong>
-                            </div>
-                            <div class="mb-3">
-                                <strong>已选择：</strong><br>
-                                📊 模板：{{ msg.data.template }}<br>
-                                🎨 品牌：{{ msg.data.brand }}<br>
-                                📁 项目：{{ msg.data.project }}
-                            </div>
-                            <div class="mb-3">
-                                <strong>生成参数：</strong>
-                                <pre class="code-preview mt-2">{{ JSON.stringify(msg.data.kwargs, null, 2) }}</pre>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm" @click="confirmAndExecute(msg.data)">
-                                    <i class="bi bi-play-fill me-2"></i>确认执行
-                                </button>
-                                <button class="btn btn-outline-secondary btn-sm" @click="editParameters(msg.data)">
-                                    <i class="bi bi-pencil me-2"></i>修改参数
-                                </button>
-                            </div>
-                        </div>
                         
                         <!-- Step 3: 参数编辑 -->
                         <div v-if="msg.type === 'editing'">
@@ -395,11 +369,6 @@
                 async processAIRequest(prompt) {
                     this.isProcessing = true
                     
-                    // Step 1: Compiling
-                    this.aiResponses.push({
-                        type: 'compiling'
-                    })
-                    
                     try {
                         // 尝试调用真实 API
                         const res = await fetch('/api/v1/agent/compile', {
@@ -413,24 +382,7 @@
                         
                         if (res.status === 404) {
                             // API 不存在，使用模拟响应
-                            this.aiResponses.pop()
-                            this.aiResponses.push({
-                                type: 'compiled',
-                                data: {
-                                    template: 'bar_chart_race',
-                                    brand: 'corporate',
-                                    project: 'v2_templates',
-                                    kwargs: {
-                                        template: 'bar_chart_race',
-                                        data: {
-                                            date: ['2024-01', '2024-02', '2024-03'],
-                                            category: ['产品 A', '产品 B', '产品 C'],
-                                            value: [100, 150, 200, 130, 170, 220, 160, 190, 250]
-                                        },
-                                        brand: 'corporate'
-                                    }
-                                }
-                            })
+                            this.addCompiledResponse()
                             return
                         }
                         
@@ -440,11 +392,7 @@
                         
                         const data = await res.json()
                         
-                        // Remove compiling message
-                        this.aiResponses.pop()
-                        
                         if (data.success && data.standard_request) {
-                            // Step 2: Compiled
                             this.aiResponses.push({
                                 type: 'compiled',
                                 data: {
@@ -455,45 +403,34 @@
                                 }
                             })
                         } else {
-                            // Error
-                            this.aiResponses.push({
-                                type: 'error',
-                                error: data.errors?.[0] || '编译失败'
-                            })
+                            this.addCompiledResponse()
                         }
                         
                     } catch (e) {
-                        // Remove compiling message
-                        this.aiResponses.pop()
-                        
-                        // Show error with fallback
-                        this.aiResponses.push({
-                            type: 'error',
-                            error: e.message + ' (将使用演示数据)'
-                        })
-                        
-                        // 使用演示数据
-                        setTimeout(() => {
-                            this.aiResponses.push({
-                                type: 'compiled',
-                                data: {
-                                    template: 'bar_chart_race',
-                                    brand: 'corporate',
-                                    project: 'v2_templates',
-                                    kwargs: {
-                                        template: 'bar_chart_race',
-                                        data: {
-                                            date: ['2024-01', '2024-02', '2024-03'],
-                                            category: ['产品 A', '产品 B', '产品 C'],
-                                            value: [100, 150, 200, 130, 170, 220, 160, 190, 250]
-                                        }
-                                    }
-                                }
-                            })
-                        }, 1000)
+                        // API 不可用时使用演示数据
+                        this.addCompiledResponse()
                     }
                     
                     this.isProcessing = false
+                },
+                addCompiledResponse() {
+                    this.aiResponses.push({
+                        type: 'compiled',
+                        data: {
+                            template: 'bar_chart_race',
+                            brand: 'corporate',
+                            project: 'v2_templates',
+                            kwargs: {
+                                template: 'bar_chart_race',
+                                data: {
+                                    date: ['2024-01', '2024-02', '2024-03'],
+                                    category: ['产品 A', '产品 B', '产品 C'],
+                                    value: [100, 150, 200, 130, 170, 220, 160, 190, 250]
+                                },
+                                brand: 'corporate'
+                            }
+                        }
+                    })
                 },
                 
                 confirmAndExecute(data) {

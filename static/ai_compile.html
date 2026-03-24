@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 意图编译 - PythonProject1 v2.3</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            margin-bottom: 30px;
+        }
+        
+        .chat-message {
+            margin-bottom: 20px;
+            display: flex;
+        }
+        
+        .chat-message.user {
+            justify-content: flex-end;
+        }
+        
+        .chat-message.ai {
+            justify-content: flex-start;
+        }
+        
+        .message-bubble {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 20px;
+            position: relative;
+        }
+        
+        .user .message-bubble {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .ai .message-bubble {
+            background: #f3f4f6;
+            color: #1f2937;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .input-area {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding: 20px;
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .step-flow {
+            border-left: 3px solid #e5e7eb;
+            padding-left: 30px;
+            margin-left: 20px;
+        }
+        
+        .step-item {
+            position: relative;
+            margin-bottom: 30px;
+        }
+        
+        .step-item::before {
+            content: '';
+            position: absolute;
+            left: -36px;
+            top: 0;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            border: 3px solid white;
+        }
+        
+        .step-item.active::before {
+            background: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+        }
+        
+        .step-item.completed::before {
+            background: var(--success-color);
+        }
+        
+        .code-preview {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        
+        .param-editor {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        
+        .video-result {
+            background: #000;
+            border-radius: 10px;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <div class="text-center text-white mb-4">
+            <h1 class="display-5 fw-bold">
+                <i class="bi bi-chat-dots me-3"></i>
+                AI 意图编译
+            </h1>
+            <p class="lead mb-0">用自然语言描述需求，AI 自动生成视频</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="main-card">
+            <!-- Chat Messages -->
+            <div class="chat-messages mb-4" style="max-height: 500px; overflow-y: auto;">
+                <!-- Welcome Message -->
+                <div class="chat-message ai">
+                    <div class="message-bubble">
+                        <div class="fw-bold mb-2">
+                            <i class="bi bi-robot me-2"></i>AI 助手
+                        </div>
+                        <div>你好！我是你的视频生成助手。请告诉我你想要创建什么样的视频？</div>
+                        <div class="mt-2 text-muted small">
+                            例如：<br>
+                            • "帮我创建一个柱状图竞赛视频，展示 2024 年各月销售额"<br>
+                            • "生成一个折线图，展示产品趋势分析"<br>
+                            • "创建一个散点图，分析用户行为相关性"
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Messages -->
+                <div class="chat-message user" v-for="(msg, index) in messages" :key="index">
+                    <div class="message-bubble">
+                        <div>{{ msg.content }}</div>
+                    </div>
+                </div>
+
+                <!-- AI Responses -->
+                <div class="chat-message ai" v-for="(msg, index) in aiResponses" :key="index">
+                    <div class="message-bubble">
+                        <div class="fw-bold mb-2">
+                            <i class="bi bi-robot me-2"></i>AI 助手
+                        </div>
+                        
+                        <!-- Step 1: 编译中 -->
+                        <div v-if="msg.type === 'compiling'">
+                            <div class="spinner-border spinner-border-sm me-2"></div>
+                            正在理解你的需求...
+                        </div>
+                        
+                        <!-- Step 2: 编译完成 -->
+                        <div v-if="msg.type === 'compiled'">
+                            <div class="alert alert-success mb-2">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <strong>编译完成！</strong>
+                            </div>
+                            <div class="mb-3">
+                                <strong>已选择：</strong><br>
+                                📊 模板：{{ msg.data.template }}<br>
+                                🎨 品牌：{{ msg.data.brand }}<br>
+                                📁 项目：{{ msg.data.project }}
+                            </div>
+                            <div class="mb-3">
+                                <strong>生成参数：</strong>
+                                <pre class="code-preview mt-2">{{ JSON.stringify(msg.data.kwargs, null, 2) }}</pre>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary btn-sm" @click="confirmAndExecute(msg.data)">
+                                    <i class="bi bi-play-fill me-2"></i>确认执行
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" @click="editParameters(msg.data)">
+                                    <i class="bi bi-pencil me-2"></i>修改参数
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 3: 参数编辑 -->
+                        <div v-if="msg.type === 'editing'">
+                            <div class="param-editor">
+                                <h6 class="fw-bold mb-3">
+                                    <i class="bi bi-sliders me-2"></i>编辑参数
+                                </h6>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">模板</label>
+                                    <select class="form-select" v-model="editData.template">
+                                        <option value="bar_chart_race">柱状图竞赛</option>
+                                        <option value="line_chart_animated">动态折线图</option>
+                                        <option value="scatter_plot_dynamic">动态散点图</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">品牌主题</label>
+                                    <select class="form-select" v-model="editData.brand">
+                                        <option value="default">默认</option>
+                                        <option value="corporate">企业</option>
+                                        <option value="vibrant">鲜艳</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">数据 (JSON)</label>
+                                    <textarea class="form-control" rows="5" v-model="editData.kwargsJson"></textarea>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-primary btn-sm" @click="saveEditedParams">
+                                        <i class="bi bi-check-lg me-2"></i>保存并执行
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" @click="cancelEdit">
+                                        <i class="bi bi-x-lg me-2"></i>取消
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 4: 执行中 -->
+                        <div v-if="msg.type === 'executing'">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span><i class="bi bi-camera-video me-2"></i>正在生成视频...</span>
+                                    <span>{{ executeProgress }}%</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar" :style="{width: executeProgress + '%'}"></div>
+                                </div>
+                            </div>
+                            <div class="text-muted small">{{ executeMessage }}</div>
+                        </div>
+                        
+                        <!-- Step 5: 执行完成 -->
+                        <div v-if="msg.type === 'completed'">
+                            <div class="alert alert-success mb-3">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <strong>视频生成成功！</strong>
+                            </div>
+                            <div class="video-result mb-3">
+                                <div class="text-center">
+                                    <i class="bi bi-play-circle display-1 mb-3"></i>
+                                    <div>视频预览</div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success">
+                                    <i class="bi bi-download me-2"></i>下载视频
+                                </button>
+                                <button class="btn btn-outline-primary">
+                                    <i class="bi bi-share me-2"></i>分享
+                                </button>
+                                <button class="btn btn-outline-secondary" @click="startNew">
+                                    <i class="bi bi-plus-circle me-2"></i>创建新视频
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Error -->
+                        <div v-if="msg.type === 'error'">
+                            <div class="alert alert-danger mb-2">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>生成失败</strong>
+                            </div>
+                            <div class="text-danger">{{ msg.error }}</div>
+                            <button class="btn btn-outline-primary btn-sm mt-2" @click="retryCompilation">
+                                <i class="bi bi-arrow-clockwise me-2"></i>重试
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="mb-3" v-if="showQuickSuggestions">
+                    <label class="form-label fw-bold small text-muted">快速建议：</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-outline-primary btn-sm" @click="useSuggestion('柱状图竞赛')">
+                            📊 柱状图竞赛
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" @click="useSuggestion('动态折线图')">
+                            📈 动态折线图
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" @click="useSuggestion('散点图分析')">
+                            🔍 散点图分析
+                        </button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        class="form-control form-control-lg" 
+                        placeholder="描述你的视频需求..." 
+                        v-model="userInput"
+                        @keyup.enter="sendMessage"
+                        :disabled="isProcessing"
+                    >
+                    <button class="btn btn-primary btn-lg" @click="sendMessage" :disabled="!userInput || isProcessing">
+                        <i class="bi bi-send-fill me-2"></i>发送
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Back to Home -->
+        <div class="text-center">
+            <button class="btn btn-outline-light" @click="goHome">
+                <i class="bi bi-house me-2"></i>返回首页
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    userInput: '',
+                    messages: [],
+                    aiResponses: [],
+                    isProcessing: false,
+                    showQuickSuggestions: true,
+                    editData: {
+                        template: '',
+                        brand: '',
+                        kwargsJson: ''
+                    },
+                    executeProgress: 0,
+                    executeMessage: '准备生成...'
+                }
+            },
+            methods: {
+                sendMessage() {
+                    if (!this.userInput.trim() || this.isProcessing) return
+                    
+                    // Add user message
+                    this.messages.push({
+                        content: this.userInput,
+                        timestamp: new Date()
+                    })
+                    
+                    // Process with AI
+                    this.processAIRequest(this.userInput)
+                    
+                    this.userInput = ''
+                    this.showQuickSuggestions = false
+                },
+                
+                async processAIRequest(prompt) {
+                    this.isProcessing = true
+                    
+                    // Step 1: Compiling
+                    this.aiResponses.push({
+                        type: 'compiling'
+                    })
+                    
+                    // Simulate AI compilation
+                    await this.sleep(1500)
+                    
+                    // Remove compiling message
+                    this.aiResponses.pop()
+                    
+                    // Step 2: Compiled
+                    const compiledData = {
+                        template: 'bar_chart_race',
+                        brand: 'corporate',
+                        project: 'v2_templates',
+                        kwargs: {
+                            date: ['2024-01', '2024-02', '2024-03'],
+                            category: ['产品 A', '产品 B', '产品 C'],
+                            value: [100, 150, 200, 130, 170, 220, 160, 190, 250]
+                        }
+                    }
+                    
+                    this.aiResponses.push({
+                        type: 'compiled',
+                        data: compiledData
+                    })
+                    
+                    this.isProcessing = false
+                },
+                
+                confirmAndExecute(data) {
+                    // Remove last AI response
+                    this.aiResponses.pop()
+                    
+                    // Step 4: Executing
+                    this.aiResponses.push({
+                        type: 'executing'
+                    })
+                    
+                    this.executeProgress = 0
+                    this.executeMessage = '准备渲染...'
+                    
+                    // Simulate execution
+                    const interval = setInterval(() => {
+                        this.executeProgress += 10
+                        if (this.executeProgress === 30) {
+                            this.executeMessage = '渲染图表中...'
+                        } else if (this.executeProgress === 60) {
+                            this.executeMessage = '合成视频中...'
+                        } else if (this.executeProgress === 90) {
+                            this.executeMessage = '最后处理...'
+                        }
+                        
+                        if (this.executeProgress >= 100) {
+                            clearInterval(interval)
+                            
+                            // Remove executing message
+                            this.aiResponses.pop()
+                            
+                            // Step 5: Completed
+                            this.aiResponses.push({
+                                type: 'completed'
+                            })
+                            
+                            this.isProcessing = false
+                        }
+                    }, 500)
+                },
+                
+                editParameters(data) {
+                    // Remove last AI response
+                    this.aiResponses.pop()
+                    
+                    // Step 3: Editing
+                    this.editData = {
+                        template: data.template,
+                        brand: data.brand,
+                        kwargsJson: JSON.stringify(data.kwargs, null, 2)
+                    }
+                    
+                    this.aiResponses.push({
+                        type: 'editing'
+                    })
+                },
+                
+                saveEditedParams() {
+                    try {
+                        const kwargs = JSON.parse(this.editData.kwargsJson)
+                        this.confirmAndExecute({
+                            template: this.editData.template,
+                            brand: this.editData.brand,
+                            kwargs: kwargs
+                        })
+                    } catch (e) {
+                        alert('JSON 格式错误，请检查')
+                    }
+                },
+                
+                cancelEdit() {
+                    // Remove editing message
+                    this.aiResponses.pop()
+                    
+                    // Add back compiled message
+                    this.aiResponses.push({
+                        type: 'compiled',
+                        data: {
+                            template: this.editData.template,
+                            brand: this.editData.brand,
+                            kwargs: JSON.parse(this.editData.kwargsJson)
+                        }
+                    })
+                },
+                
+                useSuggestion(type) {
+                    const suggestions = {
+                        '柱状图竞赛': '帮我创建一个柱状图竞赛视频，展示 2024 年各产品销售额对比',
+                        '动态折线图': '生成一个动态折线图，展示产品趋势分析',
+                        '散点图分析': '创建一个散点图，分析用户行为相关性'
+                    }
+                    this.userInput = suggestions[type]
+                },
+                
+                startNew() {
+                    this.messages = []
+                    this.aiResponses = []
+                    this.showQuickSuggestions = true
+                    this.isProcessing = false
+                },
+                
+                goHome() {
+                    alert('返回首页')
+                    // TODO: 实现路由
+                },
+                
+                sleep(ms) {
+                    return new Promise(resolve => setTimeout(resolve, ms))
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

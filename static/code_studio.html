@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代码工坊 - PythonProject1 v2.3</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            margin-bottom: 30px;
+        }
+        
+        .code-editor {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            background: #1f2937;
+            color: #f3f4f6;
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 400px;
+        }
+        
+        .diff-added {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .diff-removed {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            text-decoration: line-through;
+        }
+        
+        .file-tree {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .file-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .file-item:hover {
+            background: #e5e7eb;
+        }
+        
+        .file-item.active {
+            background: var(--primary-color);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <div class="text-center text-white mb-4">
+            <h1 class="display-5 fw-bold">
+                <i class="bi bi-code-slash me-3"></i>
+                代码工坊
+            </h1>
+            <p class="lead mb-0">开发者工具 - 自定义渲染逻辑和模板</p>
+        </div>
+
+        <div class="row g-4">
+            <!-- Left: File Tree -->
+            <div class="col-md-3">
+                <div class="main-card">
+                    <h5 class="fw-bold mb-3">
+                        <i class="bi bi-folder2-open me-2"></i>项目文件
+                    </h5>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">选择项目</label>
+                        <select class="form-select form-select-sm" v-model="selectedProject">
+                            <option value="v2_templates">v2_templates (推荐)</option>
+                            <option value="loan_comparison">loan_comparison</option>
+                            <option value="fund_fee_erosion">fund_fee_erosion</option>
+                        </select>
+                    </div>
+                    
+                    <div class="file-tree">
+                        <div 
+                            class="file-item" 
+                            :class="{active: selectedFile === file.path}"
+                            v-for="file in projectFiles" 
+                            :key="file.path"
+                            @click="selectFile(file)"
+                        >
+                            <i :class="getFileIcon(file.type)" class="me-2"></i>
+                            {{ file.name }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Code Editor -->
+            <div class="col-md-9">
+                <div class="main-card">
+                    <!-- Toolbar -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h5 class="fw-bold mb-0">
+                                <i class="bi bi-file-code me-2"></i>
+                                {{ currentFileName }}
+                            </h5>
+                            <small class="text-muted">{{ selectedProject }}/{{ currentFilePath }}</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary" @click="viewHistory">
+                                <i class="bi bi-clock-history me-2"></i>历史
+                            </button>
+                            <button class="btn btn-primary" @click="openAIAssistant" :disabled="!selectedFile">
+                                <i class="bi bi-robot me-2"></i>AI 生成代码
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Code Editor -->
+                    <div v-if="selectedFile" class="code-editor">
+                        <pre>{{ fileContent }}</pre>
+                    </div>
+                    <div v-else class="text-center text-muted py-5">
+                        <i class="bi bi-file-code display-1"></i>
+                        <p class="mt-3">选择一个文件开始编辑</p>
+                    </div>
+
+                    <!-- AI Generation Modal Placeholder -->
+                    <div v-if="showAIAssistant" class="mt-4 p-4 border rounded">
+                        <h6 class="fw-bold mb-3">
+                            <i class="bi bi-robot me-2"></i>AI 代码助手
+                        </h6>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">你的需求</label>
+                            <textarea class="form-control" rows="3" v-model="aiPrompt" placeholder="例如：添加一个红色主题样式"></textarea>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" @click="generateCode" :disabled="!aiPrompt">
+                                <i class="bi bi-magic me-2"></i>生成代码
+                            </button>
+                            <button class="btn btn-outline-secondary" @click="closeAIAssistant">取消</button>
+                        </div>
+                    </div>
+
+                    <!-- Code Diff -->
+                    <div v-if="showCodeDiff" class="mt-4">
+                        <h6 class="fw-bold mb-3">
+                            <i class="bi bi-diagram-3 me-2"></i>代码变更对比
+                        </h6>
+                        <div class="code-editor">
+                            <div v-for="(line, index) in codeDiff" :key="index" :class="getDiffClass(line)">
+                                <span class="me-3">{{ line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ' }}</span>
+                                {{ line.content }}
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-success" @click="writeToDisk">
+                                <i class="bi bi-download me-2"></i>写入磁盘
+                            </button>
+                            <button class="btn btn-outline-secondary" @click="closeDiff">取消</button>
+                        </div>
+                    </div>
+
+                    <!-- Success Message -->
+                    <div v-if="writeSuccess" class="alert alert-success mt-4">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <strong>写入成功！</strong>
+                        <div class="mt-2">
+                            <button class="btn btn-outline-success btn-sm me-2">
+                                <i class="bi bi-file-earmark me-2"></i>查看文件
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-play-fill me-2"></i>执行测试
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Back to Home -->
+        <div class="text-center">
+            <button class="btn btn-outline-light" @click="goHome">
+                <i class="bi bi-house me-2"></i>返回首页
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    selectedProject: 'v2_templates',
+                    selectedFile: null,
+                    fileContent: '',
+                    showAIAssistant: false,
+                    aiPrompt: '',
+                    showCodeDiff: false,
+                    codeDiff: [],
+                    writeSuccess: false,
+                    projectFiles: [
+                        { path: 'entrypoints.py', name: 'entrypoints.py', type: 'python' },
+                        { path: 'project_manifest.py', name: 'project_manifest.py', type: 'python' },
+                        { path: 'renderer/animation.py', name: 'animation.py', type: 'python' },
+                        { path: 'renderer/impl.py', name: 'impl.py', type: 'python' }
+                    ]
+                }
+            },
+            computed: {
+                currentFileName() {
+                    return this.selectedFile ? this.selectedFile.name : ''
+                },
+                currentFilePath() {
+                    return this.selectedFile ? this.selectedFile.path : ''
+                }
+            },
+            methods: {
+                selectFile(file) {
+                    this.selectedFile = file
+                    // Load file content (simulated)
+                    this.fileContent = `# ${file.name}\n# Content loading...`
+                },
+                getFileIcon(type) {
+                    const icons = {
+                        'python': 'bi-filetype-py',
+                        'json': 'bi-filetype-json',
+                        'markdown': 'bi-filetype-md'
+                    }
+                    return 'bi ' + (icons[type] || 'bi-file-earmark')
+                },
+                openAIAssistant() {
+                    this.showAIAssistant = true
+                    this.showCodeDiff = false
+                    this.writeSuccess = false
+                },
+                closeAIAssistant() {
+                    this.showAIAssistant = false
+                    this.aiPrompt = ''
+                },
+                generateCode() {
+                    this.showAIAssistant = false
+                    this.showCodeDiff = true
+                    
+                    // Simulate code diff
+                    this.codeDiff = [
+                        { type: 'context', content: 'def render_v2_template(' },
+                        { type: 'context', content: '    template_name: str,' },
+                        { type: 'removed', content: '    brand: str = "default",' },
+                        { type: 'added', content: '    brand: str = "corporate",' },
+                        { type: 'context', content: '    **kwargs' },
+                        { type: 'context', content: '):' },
+                        { type: 'added', content: '    # Added new feature' },
+                        { type: 'context', content: '    pass' }
+                    ]
+                },
+                closeDiff() {
+                    this.showCodeDiff = false
+                    this.codeDiff = []
+                },
+                writeToDisk() {
+                    this.showCodeDiff = false
+                    this.writeSuccess = true
+                    
+                    setTimeout(() => {
+                        this.writeSuccess = false
+                    }, 5000)
+                },
+                viewHistory() {
+                    alert('查看文件历史版本')
+                },
+                goHome() {
+                    alert('返回首页')
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

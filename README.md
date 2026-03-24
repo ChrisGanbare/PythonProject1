@@ -26,8 +26,11 @@ pip install -r requirements.txt
 ### 2. 使用主入口启动程序
 
 ```bash
-# 启动 API 服务
+# 启动 API 服务 (默认端口 8000)
 python start.py api
+
+# 启动 API 服务 (自定义端口)
+python start.py api --port 8080
 
 # 运行演示
 python start.py demo

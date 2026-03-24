@@ -41,6 +41,19 @@ def print_banner():
 def cmd_api(args):
     """启动 API 服务"""
     from api.main import main as api_main
+    import sys
+    
+    # 构建 API 启动参数
+    api_args = []
+    if hasattr(args, 'port') and args.port:
+        api_args.extend(['--port', str(args.port)])
+    if hasattr(args, 'reload') and args.reload:
+        api_args.append('--reload')
+    if hasattr(args, 'host') and args.host:
+        api_args.extend(['--host', args.host])
+    
+    # 设置 sys.argv 并调用
+    sys.argv = ['api'] + api_args
     api_main()
 
 

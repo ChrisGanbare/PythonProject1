@@ -1,0 +1,158 @@
+{
+  "template_name": "bar_chart_race",
+  "data_hash": "97ce9776",
+  "brand_style_name": "Corporate",
+  "scenes": [
+    {
+      "id": "scene_0",
+      "title": "2024-01",
+      "type": "bar_chart",
+      "data": {
+        "categories": [
+          "产品 C",
+          "产品 B",
+          "产品 D",
+          "产品 A"
+        ],
+        "values": [
+          200,
+          150,
+          120,
+          100
+        ],
+        "labels": [
+          "产品 C: 200",
+          "产品 B: 150",
+          "产品 D: 120",
+          "产品 A: 100"
+        ]
+      },
+      "config": {
+        "orientation": "horizontal",
+        "show_labels": true,
+        "show_values": true,
+        "sort_by": "value",
+        "sort_order": "desc"
+      },
+      "duration": 2.0,
+      "camera": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "zoom": 1.0,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "scene_1",
+      "title": "2024-02",
+      "type": "bar_chart",
+      "data": {
+        "categories": [
+          "产品 C",
+          "产品 B",
+          "产品 D",
+          "产品 A"
+        ],
+        "values": [
+          220,
+          170,
+          140,
+          130
+        ],
+        "labels": [
+          "产品 C: 220",
+          "产品 B: 170",
+          "产品 D: 140",
+          "产品 A: 130"
+        ]
+      },
+      "config": {
+        "orientation": "horizontal",
+        "show_labels": true,
+        "show_values": true,
+        "sort_by": "value",
+        "sort_order": "desc"
+      },
+      "duration": 2.0,
+      "camera": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "zoom": 1.0,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "scene_2",
+      "title": "2024-03",
+      "type": "bar_chart",
+      "data": {
+        "categories": [
+          "产品 C",
+          "产品 B",
+          "产品 A",
+          "产品 D"
+        ],
+        "values": [
+          250,
+          190,
+          160,
+          160
+        ],
+        "labels": [
+          "产品 C: 250",
+          "产品 B: 190",
+          "产品 A: 160",
+          "产品 D: 160"
+        ]
+      },
+      "config": {
+        "orientation": "horizontal",
+        "show_labels": true,
+        "show_values": true,
+        "sort_by": "value",
+        "sort_order": "desc"
+      },
+      "duration": 2.0,
+      "camera": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "zoom": 1.0,
+        "rotation": 0
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from_scene": "scene_0",
+      "to_scene": "scene_1",
+      "type": "fade",
+      "duration": 1.0,
+      "easing": "ease_in_out_quad"
+    },
+    {
+      "from_scene": "scene_1",
+      "to_scene": "scene_2",
+      "type": "fade",
+      "duration": 1.0,
+      "easing": "ease_in_out_quad"
+    }
+  ],
+  "audio": null,
+  "metadata": {
+    "total_dates": 3,
+    "total_categories": 4,
+    "value_range": [
+      100,
+      250
+    ]
+  }
+}

@@ -269,21 +269,50 @@
                     this.showAIAssistant = false
                     this.aiPrompt = ''
                 },
-                generateCode() {
-                    this.showAIAssistant = false
-                    this.showCodeDiff = true
+                async generateCode() {
+                    try {
+                        // 调用 AI 代码生成 API
+                        const res = await fetch('/api/code-studio/sessions/' + this.currentSessionId + '/compile', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                prompt: this.aiPrompt
+                            })
+                        })
+                        
+                        if (!res.ok) {
+                            throw new Error('生成失败')
+                        }
+                        
+                        const data = await res.json()
+                        
+                        this.showAIAssistant = false
+                        this.showCodeDiff = true
+                        
+                        // 解析代码差异
+                        this.codeDiff = this.parseCodeDiff(data.patch || '')
+                        
+                    } catch (e) {
+                        alert('AI 生成失败：' + e.message)
+                        this.closeAIAssistant()
+                    }
+                },
+                parseCodeDiff(patch) {
+                    // 简单解析 unified diff 格式
+                    const lines = patch.split('\n')
+                    const diff = []
                     
-                    // Simulate code diff
-                    this.codeDiff = [
-                        { type: 'context', content: 'def render_v2_template(' },
-                        { type: 'context', content: '    template_name: str,' },
-                        { type: 'removed', content: '    brand: str = "default",' },
-                        { type: 'added', content: '    brand: str = "corporate",' },
-                        { type: 'context', content: '    **kwargs' },
-                        { type: 'context', content: '):' },
-                        { type: 'added', content: '    # Added new feature' },
-                        { type: 'context', content: '    pass' }
-                    ]
+                    for (const line of lines) {
+                        if (line.startsWith('+')) {
+                            diff.push({ type: 'added', content: line.substring(1) })
+                        } else if (line.startsWith('-')) {
+                            diff.push({ type: 'removed', content: line.substring(1) })
+                        } else {
+                            diff.push({ type: 'context', content: line })
+                        }
+                    }
+                    
+                    return diff
                 },
                 closeDiff() {
                     this.showCodeDiff = false

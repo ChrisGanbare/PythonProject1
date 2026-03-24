@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理 - PythonProject1 v2.3</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            margin-bottom: 30px;
+        }
+        
+        .project-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 15px;
+            padding: 20px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .project-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+        
+        .project-card.recommended {
+            border-color: var(--success-color);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.1) 100%);
+        }
+        
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        
+        .status-success { background: #d1fae5; color: #065f46; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .status-processing { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <div class="text-center text-white mb-4">
+            <h1 class="display-5 fw-bold">
+                <i class="bi bi-folder2-open me-3"></i>
+                项目管理
+            </h1>
+            <p class="lead mb-0">管理所有子项目和任务执行历史</p>
+        </div>
+
+        <!-- Create Project Button -->
+        <div class="text-end mb-4">
+            <button class="btn btn-light btn-lg" data-bs-toggle="modal" data-bs-target="#createProjectModal">
+                <i class="bi bi-plus-lg me-2"></i>新建项目
+            </button>
+            <button class="btn btn-outline-light btn-lg ms-2" @click="refreshProjects">
+                <i class="bi bi-arrow-clockwise me-2"></i>刷新
+            </button>
+        </div>
+
+        <!-- Projects Grid -->
+        <div class="row g-4">
+            <div class="col-md-6" v-for="project in projects" :key="project.name">
+                <div class="project-card" :class="{recommended: project.recommended}" @click="viewProject(project)">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h4 class="mb-1">
+                                <i class="bi bi-folder-fill me-2 text-primary"></i>
+                                {{ project.name }}
+                            </h4>
+                            <p class="text-muted mb-0">{{ project.description }}</p>
+                        </div>
+                        <span v-if="project.recommended" class="badge bg-success">
+                            <i class="bi bi-star-fill me-1"></i>推荐
+                        </span>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-primary me-2">
+                                <i class="bi bi-play-fill me-1"></i>{{ project.tasks?.length || 0 }} 任务
+                            </span>
+                            <span class="badge bg-info">
+                                <i class="bi bi-gear me-1"></i>{{ project.capabilities?.viz_backends?.length || 0 }} 后端
+                            </span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" @click.stop="executeProject(project)">
+                            <i class="bi bi-play-fill me-1"></i>执行
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Execution History -->
+        <div class="main-card mt-4" v-if="executionHistory.length > 0">
+            <h3 class="mb-4">
+                <i class="bi bi-clock-history me-2 text-primary"></i>
+                执行历史
+            </h3>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>项目</th>
+                            <th>任务</th>
+                            <th>状态</th>
+                            <th>时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="exec in executionHistory" :key="exec.id">
+                            <td>
+                                <i class="bi bi-folder-fill me-2 text-primary"></i>
+                                {{ exec.project }}
+                            </td>
+                            <td>{{ exec.task }}</td>
+                            <td>
+                                <span class="status-badge" :class="'status-' + exec.status">
+                                    <i :class="'bi bi-' + getStatusIcon(exec.status)"></i>
+                                    {{ getStatusText(exec.status) }}
+                                </span>
+                            </td>
+                            <td>{{ exec.time }}</td>
+                            <td>
+                                <button v-if="exec.status === 'success'" class="btn btn-sm btn-outline-primary" @click="viewResult(exec)">
+                                    <i class="bi bi-eye me-1"></i>查看
+                                </button>
+                                <button v-if="exec.video_path" class="btn btn-sm btn-success" @click="downloadVideo(exec)">
+                                    <i class="bi bi-download me-1"></i>下载
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Back to Home -->
+        <div class="text-center">
+            <button class="btn btn-outline-light btn-lg" @click="goHome">
+                <i class="bi bi-house me-2"></i>返回首页
+            </button>
+        </div>
+
+        <!-- Create Project Modal -->
+        <div class="modal fade" id="createProjectModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-plus-lg me-2"></i>新建项目
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">项目名称</label>
+                            <input type="text" class="form-control" v-model="newProject.name" placeholder="例如：my_analysis">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">描述</label>
+                            <textarea class="form-control" v-model="newProject.description" rows="3" placeholder="项目描述..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">选择模板</label>
+                            <select class="form-select" v-model="newProject.template">
+                                <option value="">-- 选择模板 --</option>
+                                <option value="v2_templates">v2 通用模板</option>
+                                <option value="loan_comparison">贷款对比</option>
+                                <option value="fund_fee_erosion">基金手续费</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" @click="createProject">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    projects: [],
+                    executionHistory: [],
+                    newProject: {
+                        name: '',
+                        description: '',
+                        template: ''
+                    },
+                    loading: false
+                }
+            },
+            mounted() {
+                this.fetchProjects()
+                this.fetchExecutionHistory()
+            },
+            methods: {
+                async fetchProjects() {
+                    this.loading = true
+                    try {
+                        const res = await fetch('/api/registry')
+                        const data = await res.json()
+                        this.projects = data.projects || []
+                        
+                        // 标记推荐项目
+                        const recommended = ['v2_templates', 'loan_comparison']
+                        this.projects.forEach(p => {
+                            p.recommended = recommended.includes(p.name)
+                        })
+                    } catch (e) {
+                        console.error('Failed to fetch projects:', e)
+                    } finally {
+                        this.loading = false
+                    }
+                },
+                async fetchExecutionHistory() {
+                    try {
+                        // TODO: 实现执行历史 API
+                        this.executionHistory = [
+                            {
+                                id: 1,
+                                project: 'v2_templates',
+                                task: 'render',
+                                status: 'success',
+                                time: '2024-03-24 10:30',
+                                video_path: '/outputs/video_1.mp4'
+                            },
+                            {
+                                id: 2,
+                                project: 'loan_comparison',
+                                task: 'render',
+                                status: 'success',
+                                time: '2024-03-23 15:20',
+                                video_path: '/outputs/video_2.mp4'
+                            }
+                        ]
+                    } catch (e) {
+                        console.error('Failed to fetch history:', e)
+                    }
+                },
+                viewProject(project) {
+                    alert('查看项目详情：' + project.name)
+                    // TODO: 实现项目详情页面
+                },
+                async executeProject(project) {
+                    if (!confirm(`确定要执行项目 "${project.name}" 的默认任务吗？`)) return
+                    
+                    try {
+                        const res = await fetch(`/api/run/${project.name}/${project.default_task}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({})
+                        })
+                        
+                        if (res.ok) {
+                            alert('任务已启动，请在执行历史中查看进度')
+                            this.fetchExecutionHistory()
+                        } else {
+                            throw new Error('执行失败')
+                        }
+                    } catch (e) {
+                        alert('执行失败：' + e.message)
+                    }
+                },
+                async createProject() {
+                    if (!this.newProject.name) {
+                        alert('请输入项目名称')
+                        return
+                    }
+                    
+                    try {
+                        const res = await fetch('/api/projects', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newProject)
+                        })
+                        
+                        if (res.ok) {
+                            alert('项目创建成功！')
+                            this.newProject = { name: '', description: '', template: '' }
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('createProjectModal'))
+                            modal.hide()
+                            this.fetchProjects()
+                        } else {
+                            throw new Error('创建失败')
+                        }
+                    } catch (e) {
+                        alert('创建失败：' + e.message)
+                    }
+                },
+                refreshProjects() {
+                    this.fetchProjects()
+                    this.fetchExecutionHistory()
+                },
+                getStatusIcon(status) {
+                    const icons = {
+                        'success': 'check-circle-fill',
+                        'failed': 'x-circle-fill',
+                        'processing': 'hourglass-split'
+                    }
+                    return icons[status] || 'question-circle-fill'
+                },
+                getStatusText(status) {
+                    const texts = {
+                        'success': '成功',
+                        'failed': '失败',
+                        'processing': '执行中'
+                    }
+                    return texts[status] || status
+                },
+                viewResult(exec) {
+                    alert('查看执行结果：' + exec.project)
+                },
+                downloadVideo(exec) {
+                    window.open(exec.video_path, '_blank')
+                },
+                goHome() {
+                    window.location.href = '/'
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

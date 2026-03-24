@@ -389,28 +389,55 @@
                         type: 'compiling'
                     })
                     
-                    // Simulate AI compilation
-                    await this.sleep(1500)
-                    
-                    // Remove compiling message
-                    this.aiResponses.pop()
-                    
-                    // Step 2: Compiled
-                    const compiledData = {
-                        template: 'bar_chart_race',
-                        brand: 'corporate',
-                        project: 'v2_templates',
-                        kwargs: {
-                            date: ['2024-01', '2024-02', '2024-03'],
-                            category: ['产品 A', '产品 B', '产品 C'],
-                            value: [100, 150, 200, 130, 170, 220, 160, 190, 250]
+                    try {
+                        // 调用真实 API
+                        const res = await fetch('/api/v1/agent/compile', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                prompt: prompt,
+                                persist_turns: false
+                            })
+                        })
+                        
+                        if (!res.ok) {
+                            throw new Error('编译失败')
                         }
+                        
+                        const data = await res.json()
+                        
+                        // Remove compiling message
+                        this.aiResponses.pop()
+                        
+                        if (data.success && data.standard_request) {
+                            // Step 2: Compiled
+                            this.aiResponses.push({
+                                type: 'compiled',
+                                data: {
+                                    template: data.standard_request.kwargs.template || 'bar_chart_race',
+                                    brand: 'corporate',
+                                    project: data.standard_request.project,
+                                    kwargs: data.standard_request.kwargs
+                                }
+                            })
+                        } else {
+                            // Error
+                            this.aiResponses.push({
+                                type: 'error',
+                                error: data.errors?.[0] || '编译失败'
+                            })
+                        }
+                        
+                    } catch (e) {
+                        // Remove compiling message
+                        this.aiResponses.pop()
+                        
+                        // Show error
+                        this.aiResponses.push({
+                            type: 'error',
+                            error: e.message
+                        })
                     }
-                    
-                    this.aiResponses.push({
-                        type: 'compiled',
-                        data: compiledData
-                    })
                     
                     this.isProcessing = false
                 },

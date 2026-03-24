@@ -592,16 +592,13 @@
                     this.generateProgress = 0
                 },
                 goToAICompile() {
-                    alert('即将跳转到 AI 意图编译功能')
-                    // TODO: 实现路由跳转
+                    window.location.href = '/ai_compile.html'
                 },
                 goToProjects() {
-                    alert('即将跳转到项目管理页面')
-                    // TODO: 实现路由跳转
+                    window.location.href = '/classic'
                 },
                 goToCodeStudio() {
-                    alert('即将跳转到代码工坊')
-                    // TODO: 实现路由跳转
+                    window.location.href = '/code_studio.html'
                 }
             }
         }).mount('#app')

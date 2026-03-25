@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # 主应用服务
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../workspace:/app/workspace
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FFMPEG_CONFIG=high
+      - MAX_WORKERS=4
+    working_dir: /app/poc
+    command: python main.py
+    
+  # 批量处理服务
+  batch-processor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../workspace:/app/workspace
+    environment:
+      - MAX_WORKERS=8
+    working_dir: /app/poc
+    command: python -c "from src.video.ffmpeg_wrapper import BatchVideoProcessor; print('Batch processor ready')"
+    
+  # 开发服务 (带热重载)
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../workspace:/app/workspace
+      - ../poc:/app/poc
+    ports:
+      - "8000:8000"
+    working_dir: /app/poc
+    command: python -m http.server 8000

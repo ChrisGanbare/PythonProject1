@@ -62,7 +62,7 @@ from core.render import create_renderer
 app = FastAPI(
     title="PythonProject1 Video API",
     description="数据可视化视频生成 API - 提供模板、品牌、渲染等完整能力",
-    version="2.2.0",
+    version="2.3.0",
     docs_url="/docs",  # Swagger UI 地址
     redoc_url="/redoc"  # ReDoc 地址
 )

@@ -1,320 +1,440 @@
-# PythonProject1 - 远程部署指南
+# PythonProject1 部署文档
 
-**版本**: v2.2  
-**最后更新**: 2026-03-24
+## 快速部署
 
----
-
-## 🚀 快速部署
-
-### 1. 克隆项目
+### 方法 1: 本地部署 (推荐开发使用)
 
 ```bash
-# 克隆项目
+# 1. 克隆项目
 git clone https://github.com/ChrisGanbare/PythonProject1.git
 cd PythonProject1
-```
 
-### 2. 安装依赖
-
-```bash
-# 安装核心依赖
-pip install -r requirements.txt
-```
-
-### 3. 启动程序
-
-#### 方式 1: 使用 start.py (推荐)
-
-```bash
-# 启动 API 服务
-python start.py api
-
-# 启动 Dashboard
-python start.py dashboard
-
-# 运行演示
-python start.py demo
-
-# 查看帮助
-python start.py --help
-```
-
-#### 方式 2: 直接启动
-
-```bash
-# API 服务
-python -m api.main --port 8000
-
-# Dashboard
-python scripts/dashboard.py
-
-# CLI 工具
-python -m cli.video list-templates
-```
-
----
-
-## 🌐 远程访问配置
-
-### API 服务 (默认端口 8000)
-
-**启动命令**:
-```bash
-python start.py api --host 0.0.0.0 --port 8000
-```
-
-**访问地址**:
-- Swagger UI: `http://<服务器 IP>:8000/docs`
-- API 根路径：`http://<服务器 IP>:8000`
-
-**防火墙设置**:
-```bash
-# Windows (管理员权限)
-netsh advfirewall firewall add rule name="PythonProject1 API" dir=in action=allow protocol=TCP localport=8000
-
-# Linux
-sudo ufw allow 8000/tcp
-
-# macOS
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /path/to/python
-```
-
----
-
-### Dashboard 控制台 (默认端口 8090)
-
-**启动命令**:
-```bash
-python start.py dashboard --host 0.0.0.0 --port 8090
-```
-
-**访问地址**:
-- Dashboard: `http://<服务器 IP>:8090`
-
-**防火墙设置**:
-```bash
-# Windows
-netsh advfirewall firewall add rule name="PythonProject1 Dashboard" dir=in action=allow protocol=TCP localport=8090
-
-# Linux
-sudo ufw allow 8090/tcp
-```
-
----
-
-## 📦 系统要求
-
-### 最低要求
-
-- **Python**: 3.9+
-- **内存**: 4GB
-- **磁盘**: 2GB
-- **操作系统**: Windows/Linux/macOS
-
-### 推荐配置
-
-- **Python**: 3.11+
-- **内存**: 8GB+
-- **磁盘**: 10GB+
-- **操作系统**: Windows 10+/Ubuntu 20.04+/macOS 11+
-
----
-
-## 🔧 依赖安装
-
-### Windows
-
-```bash
-# 安装 Python 依赖
+# 2. 安装依赖
 pip install -r requirements.txt
 
-# 安装 FFmpeg (可选，用于视频渲染)
+# 3. 启动服务
+python main.py dashboard  # Web 控制台 (8090)
+# 或
+python main.py api        # API 服务 (8000)
+
+# 4. 运行 POC 演示 (可选)
+cd poc
+python demo_stages.py
+```
+
+### 方法 2: Docker 部署 (推荐生产使用)
+
+```bash
+# 1. 构建镜像
+docker build -f docker/Dockerfile -t pythonproject1:latest .
+
+# 2. 运行容器
+docker run -it -v $(pwd)/workspace:/app/workspace pythonproject1:latest
+
+# 3. 使用 docker-compose
+cd docker
+docker-compose up -d
+```
+
+### 方法 3: Docker Compose (多服务)
+
+```bash
+cd docker
+
+# 启动所有服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+```
+
+---
+
+## 📦 远程部署检查清单
+
+### 部署前检查
+
+- [ ] 已安装 Python 3.9+
+- [ ] 已克隆项目
+- [ ] 已安装依赖 (`pip install -r requirements.txt`)
+- [ ] 已配置防火墙 (端口 8000 和 8090)
+
+### 启动服务
+
+**API 服务**:
+```bash
+python main.py api --host 0.0.0.0 --port 8000
+```
+
+**Dashboard 控制台**:
+```bash
+python main.py dashboard --host 0.0.0.0 --port 8090
+```
+
+### 远程访问
+
+- **API 文档**: `http://<服务器 IP>:8000/docs`
+- **Dashboard**: `http://<服务器 IP>:8090`
+
+### 验证步骤
+
+1. [ ] 访问 API 文档页面
+2. [ ] 访问 Dashboard 页面
+3. [ ] 测试创建视频作业
+4. [ ] 检查日志无错误
+
+---
+
+## 环境要求
+
+### 系统要求
+
+| 系统 | 版本 | 必需 |
+|------|------|------|
+| Python | 3.9+ | ✅ |
+| FFmpeg | 5.0+ | ✅ (视频处理) |
+| Docker | 20.0+ | ⏸️ (可选) |
+| Git | 2.0+ | ✅ |
+
+### Python 依赖
+
+核心依赖:
+```
+plotly>=5.18.0
+numpy>=1.24.0
+pandas>=2.0.0
+Pillow>=10.0.0
+pytest>=7.4.0
+```
+
+可选依赖:
+```
+kaleido          # 静态图片导出
+moviepy>=2.0.0   # 视频处理
+manim>=0.18.0    # 动画引擎
+imageio-ffmpeg   # 视频编码
+```
+
+---
+
+## 部署步骤详解
+
+### 步骤 1: 环境检查
+
+```bash
+python deploy.py check
+```
+
+输出示例:
+```
+============================================================
+PythonProject1 完整部署
+============================================================
+
+环境检查:
+
+Python 版本:
+✓ Python 3.11.0
+
+FFmpeg:
+✓ FFmpeg: 5.1.2
+
+Docker:
+✓ Docker: 24.0.0
+
+Python 依赖:
+✓ plotly
+✓ numpy
+✓ pandas
+✓ PIL
+✓ pytest
+```
+
+### 步骤 2: 安装依赖
+
+```bash
+# 基础依赖
+python deploy.py install
+
+# 完整依赖 (包括可选)
+pip install -r poc/requirements.txt
+pip install kaleido moviepy manim imageio-ffmpeg
+```
+
+### 步骤 3: 创建工作目录
+
+自动创建以下目录:
+```
+workspace/
+├── output/    # 输出文件
+├── temp/      # 临时文件
+├── cache/     # 缓存
+└── config.ini # 配置文件
+```
+
+### 步骤 4: 运行测试
+
+```bash
+python deploy.py test
+```
+
+### 步骤 5: 运行演示
+
+```bash
+python deploy.py demo
+```
+
+### 步骤 6: Docker 构建 (可选)
+
+```bash
+python deploy.py docker
+```
+
+---
+
+## 配置说明
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `FFMPEG_CONFIG` | medium | 编码质量 (low/medium/high) |
+| `MAX_WORKERS` | 4 | 最大工作线程数 |
+| `PYTHONUNBUFFERED` | 1 | 无缓冲输出 |
+
+### 配置文件 (config.ini)
+
+```ini
+[video]
+width = 1920
+height = 1080
+fps = 30
+bitrate = 5000k
+codec = libx264
+
+[audio]
+codec = aac
+bitrate = 192k
+sample_rate = 44100
+
+[performance]
+max_workers = 4
+cache_enabled = true
+hardware_accel = false
+
+[output]
+format = mp4
+quality = high
+```
+
+---
+
+## 生产环境部署
+
+### AWS EC2
+
+```bash
+# 1. 启动 EC2 实例 (Ubuntu 22.04)
+
+# 2. 安装依赖
+sudo apt update
+sudo apt install -y python3-pip ffmpeg docker.io
+
+# 3. 克隆项目
+git clone <repo-url>
+cd PythonProject1
+
+# 4. 部署
+cd poc
+python3 deploy.py deploy
+
+# 5. 使用 Docker
+cd ../docker
+sudo docker-compose up -d
+```
+
+### Google Cloud Run
+
+```bash
+# 1. 构建并推送镜像
+gcloud builds submit --tag gcr.io/PROJECT_ID/pythonproject1
+
+# 2. 部署到 Cloud Run
+gcloud run deploy pythonproject1 \
+  --image gcr.io/PROJECT_ID/pythonproject1 \
+  --platform managed
+```
+
+### Azure Container Instances
+
+```bash
+# 1. 创建资源组
+az group create --name myResourceGroup --location eastus
+
+# 2. 部署容器
+az container create \
+  --resource-group myResourceGroup \
+  --name pythonproject1 \
+  --image pythonproject1:latest \
+  --cpu 2 \
+  --memory 4
+```
+
+---
+
+## 故障排查
+
+### FFmpeg 未找到
+
+**Windows:**
+```powershell
 choco install ffmpeg
 # 或下载 https://ffmpeg.org/download.html
 ```
 
-### Linux (Ubuntu/Debian)
-
+**macOS:**
 ```bash
-# 系统依赖
-sudo apt update
-sudo apt install -y python3-pip python3-venv ffmpeg
-
-# Python 依赖
-pip3 install -r requirements.txt
+brew install ffmpeg
 ```
 
-### macOS
+**Linux:**
+```bash
+sudo apt install ffmpeg  # Debian/Ubuntu
+sudo yum install ffmpeg  # RHEL/CentOS
+```
+
+### Docker 权限问题
 
 ```bash
-# 系统依赖
-brew install python ffmpeg
+# Linux: 添加用户到 docker 组
+sudo usermod -aG docker $USER
+newgrp docker
 
-# Python 依赖
-pip3 install -r requirements.txt
+# 或使用 sudo
+sudo docker run ...
+```
+
+### Python 依赖冲突
+
+```bash
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# 安装依赖
+pip install -r requirements.txt
 ```
 
 ---
 
-## 🐳 Docker 部署
+## 性能优化
 
-### 构建镜像
+### 硬件加速
 
-```bash
-docker build -f scripts/Dockerfile -t pythonproject1:latest .
+```ini
+# config.ini
+[performance]
+hardware_accel = true
+gpu_encoder = h264_nvenc  # NVIDIA
+# gpu_encoder = h264_amf  # AMD
+# gpu_encoder = h264_videotoolbox  # macOS
 ```
 
-### 运行容器
+### 并行处理
 
-```bash
-# API 服务
-docker run -d -p 8000:8000 --name pp1-api pythonproject1:latest python start.py api
-
-# Dashboard
-docker run -d -p 8090:8090 --name pp1-dashboard pythonproject1:latest python start.py dashboard
+```ini
+[performance]
+max_workers = 8  # 根据 CPU 核心数调整
 ```
 
-### 使用 Docker Compose
+### 缓存启用
+
+```ini
+[performance]
+cache_enabled = true
+```
+
+---
+
+## 监控与日志
+
+### 查看 Docker 日志
 
 ```bash
-cd scripts
+docker-compose logs -f app
+```
+
+### 健康检查
+
+```bash
+# 检查服务状态
+docker-compose ps
+
+# 检查容器健康
+docker inspect --format='{{.State.Health.Status}}' <container-id>
+```
+
+---
+
+## 更新与升级
+
+### 更新代码
+
+```bash
+git pull origin main
+python deploy.py deploy
+```
+
+### 升级依赖
+
+```bash
+python deploy.py install --upgrade
+```
+
+### 重建 Docker 镜像
+
+```bash
+docker-compose build --no-cache
 docker-compose up -d
 ```
 
 ---
 
-## 🔐 安全配置
+## 安全建议
 
-### 生产环境建议
+1. **不要提交敏感信息**
+   - 使用环境变量存储密钥
+   - 添加 `.env` 到 `.gitignore`
 
-1. **限制访问 IP**:
+2. **限制容器权限**
+   ```yaml
+   # docker-compose.yml
+   services:
+     app:
+       security_opt:
+         - no-new-privileges:true
+       read_only: true
+   ```
+
+3. **定期更新依赖**
    ```bash
-   # 只允许特定 IP 访问
-   python start.py api --host 127.0.0.1
-   ```
-
-2. **使用反向代理**:
-   ```nginx
-   # Nginx 配置示例
-   location /api/ {
-       proxy_pass http://127.0.0.1:8000;
-       proxy_set_header Host $host;
-       proxy_set_header X-Real-IP $remote_addr;
-   }
-   ```
-
-3. **启用 HTTPS**:
-   ```bash
-   # 使用 Let's Encrypt
-   certbot --nginx -d your-domain.com
-   ```
-
-4. **设置环境变量**:
-   ```bash
-   # .env 文件
-   API_KEY=your-secret-key
-   DATABASE_URL=postgresql://user:pass@localhost/dbname
+   pip list --outdated
+   pip install --upgrade <package>
    ```
 
 ---
 
-## 📊 验证部署
+## 支持
 
-### 检查 API 服务
-
-```bash
-# 访问 API 文档
-curl http://<服务器 IP>:8000/docs
-
-# 列出模板
-curl http://<服务器 IP>:8000/api/v1/templates
-
-# 列出主题
-curl http://<服务器 IP>:8000/api/v1/themes
-```
-
-### 检查 Dashboard
-
-```bash
-# 访问 Dashboard
-curl http://<服务器 IP>:8090
-
-# 检查项目列表
-curl http://<服务器 IP>:8090/api/registry
-```
+- 文档：`/docs`
+- 问题：GitHub Issues
+- 邮件：support@example.com
 
 ---
 
-## 🐛 故障排查
-
-### 常见问题
-
-#### 1. 端口被占用
-
-**错误**: `Address already in use`
-
-**解决**:
-```bash
-# Windows
-netstat -ano | findstr :8000
-taskkill /PID <PID> /F
-
-# Linux
-lsof -i :8000
-kill -9 <PID>
-```
-
-#### 2. 模块导入错误
-
-**错误**: `ModuleNotFoundError`
-
-**解决**:
-```bash
-# 确保在项目根目录运行
-cd PythonProject1
-python start.py api
-```
-
-#### 3. FFmpeg 未找到
-
-**错误**: `FFmpeg not found`
-
-**解决**:
-```bash
-# Windows
-choco install ffmpeg
-
-# Linux
-sudo apt install ffmpeg
-
-# macOS
-brew install ffmpeg
-```
-
----
-
-## 📝 更新项目
-
-```bash
-# 拉取最新代码
-git pull origin master
-
-# 重新安装依赖
-pip install -r requirements.txt --upgrade
-
-# 重启服务
-# (先停止当前运行的服务，然后重新启动)
-```
-
----
-
-## 📞 支持
-
-- **项目地址**: https://github.com/ChrisGanbare/PythonProject1
-- **Issue 反馈**: https://github.com/ChrisGanbare/PythonProject1/issues
-- **文档**: http://<服务器 IP>:8000/docs
-
----
-
-**部署完成，祝使用愉快！** 🎉
+*最后更新：2026-03-24*  
+*版本：1.0.0*

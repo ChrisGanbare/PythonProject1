@@ -278,11 +278,31 @@ def render_video_job(job_id: str):
         job["progress"] = 20
         job["message"] = "解析数据..."
         
-        labels = [l.strip() for l in data_input["labels"].split(",")]
-        values = [float(v.strip()) for v in data_input["values"].split(",")]
+        # 兼容处理：支持字符串和数组两种格式
+        labels_raw = data_input["labels"]
+        values_raw = data_input["values"]
+        
+        # 如果是字符串，按逗号分割（支持中文逗号和英文逗号）；如果是数组，直接使用
+        if isinstance(labels_raw, str):
+            # 先替换中文逗号为英文逗号，再分割
+            labels_normalized = labels_raw.replace(",", ",").strip()
+            labels = [l.strip() for l in labels_normalized.split(",") if l.strip()]
+        elif isinstance(labels_raw, list):
+            labels = [str(l).strip() for l in labels_raw if str(l).strip()]
+        else:
+            raise ValueError(f"labels 格式错误：期望字符串或数组，得到 {type(labels_raw)}")
+        
+        if isinstance(values_raw, str):
+            # 先替换中文逗号为英文逗号，再分割
+            values_normalized = values_raw.replace(",", ",").strip()
+            values = [float(v.strip()) for v in values_normalized.split(",") if v.strip()]
+        elif isinstance(values_raw, list):
+            values = [float(v) for v in values_raw if v is not None and str(v).strip()]
+        else:
+            raise ValueError(f"values 格式错误：期望字符串或数组，得到 {type(values_raw)}")
         
         if len(labels) != len(values):
-            raise ValueError("标签和数值数量不匹配")
+            raise ValueError(f"标签和数值数量不匹配：labels={len(labels)}, values={len(values)}")
         
         # 构建图表数据
         chart_data = {

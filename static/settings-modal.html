@@ -1,0 +1,884 @@
+<!-- 
+全局设置模态框组件 - 纯 JavaScript 实现
+与项目 UI 风格保持一致（紫色渐变主题）
+-->
+
+<style>
+/* 主题变量 */
+#settingsModal {
+  --primary-color: #667eea;
+  --secondary-color: #764ba2;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+}
+
+/* 模态框头部渐变 */
+#settingsModal .modal-header.bg-primary {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+  border: none;
+}
+
+#settingsModal .modal-content {
+  border: none;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+#settingsModal .modal-header {
+  border-bottom: none;
+}
+
+#settingsModal .card {
+  border: none;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  transition: all 0.3s;
+}
+
+#settingsModal .card:hover {
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+}
+
+#settingsModal .card-header {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  border-radius: 15px 15px 0 0 !important;
+  padding: 15px 20px;
+}
+
+#settingsModal .form-label {
+  color: #374151;
+  font-weight: 600;
+}
+
+#settingsModal .form-control,
+#settingsModal .form-select {
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 15px;
+  transition: all 0.2s;
+}
+
+#settingsModal .form-control:focus,
+#settingsModal .form-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+#settingsModal .form-control.font-monospace {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+#settingsModal .btn-primary {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 25px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+#settingsModal .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+#settingsModal .btn-outline-primary {
+  border: 2px solid var(--primary-color);
+  color: var(--primary-color);
+  border-radius: 10px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+#settingsModal .btn-outline-primary:hover {
+  background: var(--primary-color);
+  color: white;
+  transform: translateY(-2px);
+}
+
+#settingsModal .btn-outline-secondary {
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+#settingsModal .btn-outline-secondary:hover {
+  transform: translateY(-1px);
+}
+
+#settingsModal .alert {
+  border: none;
+  border-radius: 12px;
+  padding: 15px 20px;
+}
+
+#settingsModal .alert-info {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
+  border-left: 4px solid var(--primary-color);
+}
+
+#settingsModal .alert-warning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(239, 68, 68, 0.08) 100%);
+  border-left: 4px solid var(--warning-color);
+}
+
+#settingsModal .badge {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* API Key 输入框增强样式 */
+#settingsModal #settingsApiKey {
+  letter-spacing: 2px;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+#settingsModal #btnToggleApiKey {
+  min-width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+#settingsModal #btnToggleApiKey:hover {
+  transform: scale(1.05);
+}
+
+#settingsModal #btnToggleApiKey.btn-outline-secondary {
+  border-color: #d1d5db;
+  color: #6b7280;
+}
+
+#settingsModal #btnToggleApiKey.btn-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border: none;
+  color: white;
+}
+
+#settingsModal #iconToggleApiKey {
+  font-size: 1.1rem;
+  transition: all 0.2s;
+}
+
+#settingsModal #btnToggleApiKey:hover #iconToggleApiKey {
+  transform: scale(1.1);
+}
+
+/* 质量预设卡片 */
+#settingsModal .quality-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.03) 0%, rgba(118, 75, 162, 0.03) 100%);
+  border-radius: 12px;
+  padding: 15px;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+#settingsModal .quality-card:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+}
+
+/* 模态框底部 */
+#settingsModal .modal-footer {
+  border-top: 1px solid rgba(102, 126, 234, 0.1);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.02) 0%, rgba(118, 75, 162, 0.02) 100%);
+  border-radius: 0 0 20px 20px;
+  padding: 20px;
+}
+
+/* 滚动条美化 */
+#settingsModal .modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+#settingsModal .modal-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+#settingsModal .modal-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  border-radius: 4px;
+}
+
+#settingsModal .modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary-color);
+}
+
+/* 动画效果 */
+#settingsModal .card {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+#settingsModal .card:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+#settingsModal .card:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+#settingsModal .card:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-primary">
+        <h5 class="modal-title text-white" id="settingsModalLabel">
+          <i class="bi bi-gear-fill me-2"></i>全局设置
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="background: #fafafa;">
+        
+        <!-- AI 配置 -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h6 class="mb-0 fw-bold">
+              <i class="bi bi-cpu-fill text-primary me-2"></i>AI 配置
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>配置 OpenAI 兼容 API</strong>，用于 AI 代码生成和视频脚本编译功能。
+              支持 OpenAI、通义千问、Moonshot 等兼容 API。
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-link-45deg me-1"></i>Base URL <span class="text-danger">*</span>
+              </label>
+              <input type="text" 
+                     class="form-control font-monospace" 
+                     id="settingsBaseUrl"
+                     placeholder="https://api.openai.com/v1"
+                     autocomplete="off"
+                     style="background: #fefefe;">
+              <div class="form-text mt-2">
+                <i class="bi bi-lightbulb text-primary me-1"></i>
+                <strong>常用 API 地址：</strong>
+                <div class="row g-2 mt-1">
+                  <div class="col-md-4">
+                    <code class="d-block p-2 bg-light rounded">🌐 OpenAI 官方</code>
+                    <small class="text-muted">api.openai.com/v1</small>
+                  </div>
+                  <div class="col-md-4">
+                    <code class="d-block p-2 bg-light rounded">🔷 通义千问</code>
+                    <small class="text-muted">dashscope.aliyuncs.com</small>
+                  </div>
+                  <div class="col-md-4">
+                    <code class="d-block p-2 bg-light rounded">🌙 Moonshot</code>
+                    <small class="text-muted">api.moonshot.cn/v1</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-key-fill me-1"></i>API Key <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <input type="password" 
+                       class="form-control font-monospace" 
+                       id="settingsApiKey"
+                       placeholder="sk-..."
+                       autocomplete="off"
+                       style="letter-spacing: 2.5px;">
+                <button class="btn btn-outline-secondary" 
+                        type="button" 
+                        id="btnToggleApiKey"
+                        onclick="toggleApiKeyVisibility()"
+                        title="显示 API Key"
+                        style="min-width: 55px;">
+                  <i class="bi bi-eye" id="iconToggleApiKey"></i>
+                </button>
+              </div>
+              <div class="form-text mt-2">
+                <i class="bi bi-shield-check me-1 text-success"></i>
+                <strong>安全存储：</strong>API Key 仅保存在本地浏览器。
+                <span id="apiKeyStatus" class="ms-2"></span>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-boxes me-1"></i>模型提供商
+              </label>
+              <select class="form-select" id="settingsProvider" onchange="updateModelOptions()">
+                <option value="openai">🌐 OpenAI</option>
+                <option value="deepseek">🤖 DeepSeek (深度求索)</option>
+                <option value="dashscope">🔷 通义千问 (阿里云)</option>
+                <option value="moonshot">🌙 Moonshot (月之暗面)</option>
+                <option value="custom">⚙️ 自定义 / 其他</option>
+              </select>
+              <div class="form-text mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                选择 API 提供商，自动匹配对应模型列表。
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-cpu me-1"></i>模型 <span class="text-danger">*</span>
+              </label>
+              <select class="form-select" id="settingsModel">
+                <optgroup label="🌐 OpenAI" id="optgroup-openai">
+                  <option value="gpt-3.5-turbo">GPT-3.5 Turbo (快速/经济)</option>
+                  <option value="gpt-4-turbo">GPT-4 Turbo (高质量)</option>
+                  <option value="gpt-4o">GPT-4o (最佳)</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini (性价比)</option>
+                </optgroup>
+                <optgroup label="🤖 DeepSeek" id="optgroup-deepseek" style="display:none;">
+                  <option value="deepseek-chat">DeepSeek Chat (对话)</option>
+                  <option value="deepseek-coder">DeepSeek Coder (代码)</option>
+                  <option value="deepseek-v2">DeepSeek V2 (最新版)</option>
+                </optgroup>
+                <optgroup label="🔷 通义千问" id="optgroup-dashscope" style="display:none;">
+                  <option value="qwen-turbo">通义千问 Turbo</option>
+                  <option value="qwen-plus">通义千问 Plus</option>
+                  <option value="qwen-max">通义千问 Max</option>
+                  <option value="qwen-coder-plus">通义千问 Coder Plus (代码)</option>
+                </optgroup>
+                <optgroup label="🌙 Moonshot" id="optgroup-moonshot" style="display:none;">
+                  <option value="moonshot-v1-8k">Moonshot V1 8K</option>
+                  <option value="moonshot-v1-32k">Moonshot V1 32K</option>
+                  <option value="moonshot-v1-128k">Moonshot V1 128K</option>
+                </optgroup>
+                <optgroup label="⚙️ 自定义" id="optgroup-custom" style="display:none;">
+                  <option value="custom">手动输入模型名称</option>
+                </optgroup>
+              </select>
+              
+              <!-- 自定义模型输入框 -->
+              <input type="text" 
+                     class="form-control mt-2 font-monospace" 
+                     id="settingsCustomModel"
+                     placeholder="例如：deepseek-coder"
+                     style="display:none;">
+              
+              <div class="form-text mt-2">
+                <i class="bi bi-lightbulb text-primary me-1"></i>
+                <span id="providerHint">首次使用建议选择 <code>gpt-3.5-turbo</code> 或 <code>qwen-turbo</code> 进行测试。</span>
+              </div>
+              
+              <!-- API Key 不匹配提示 -->
+              <div id="modelMismatchAlert" class="alert alert-warning mt-2" style="display:none;">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>模型不可用</strong>
+                <ul class="mb-0 mt-2">
+                  <li>阿里云用户：选择 <strong>通义千问</strong> 提供商</li>
+                  <li>DeepSeek 用户：选择 <strong>DeepSeek</strong> 提供商</li>
+                  <li>或使用 <strong>自定义</strong> 手动输入模型名称</li>
+                </ul>
+                <div class="mt-2">
+                  <button class="btn btn-sm btn-outline-warning me-2" onclick="switchProvider('dashscope')">
+                    <i class="bi bi-arrow-right-circle me-1"></i>通义千问
+                  </button>
+                  <button class="btn btn-sm btn-outline-warning" onclick="switchProvider('deepseek')">
+                    <i class="bi bi-arrow-right-circle me-1"></i>DeepSeek
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="d-flex gap-2 align-items-center">
+              <button type="button" 
+                      class="btn btn-outline-primary" 
+                      id="btnValidateAPI"
+                      onclick="validateAPI()">
+                <i class="bi bi-check-circle me-1"></i>验证连接
+              </button>
+              
+              <div id="apiStatus"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 渲染设置 -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h6 class="mb-0 fw-bold">
+              <i class="bi bi-film text-primary me-2"></i>渲染设置
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-speedometer2 me-1"></i>质量预设
+              </label>
+              <select class="form-select" id="settingsQuality" onchange="updateQualityParams()">
+                <option value="preview">🚀 Preview - 快速预览 (72 DPI)</option>
+                <option value="draft" selected>📝 Draft - 草稿质量 (108 DPI)</option>
+                <option value="final">✨ Final - 最终质量 (144 DPI)</option>
+              </select>
+            </div>
+            
+            <div class="alert alert-light border">
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <div class="quality-card">
+                    <div class="text-muted small mb-1">DPI</div>
+                    <div class="fs-3 fw-bold text-primary" id="qualityDpi">108</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="quality-card">
+                    <div class="text-muted small mb-1">比特率</div>
+                    <div class="fs-3 fw-bold text-primary" id="qualityBitrate">8000k</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="quality-card">
+                    <div class="text-muted small mb-1">CRF</div>
+                    <div class="fs-3 fw-bold text-primary" id="qualityCrf">21</div>
+                  </div>
+                </div>
+              </div>
+              <hr class="my-3">
+              <div class="small text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                <strong>Preview</strong> 适合快速预览和测试，
+                <strong>Draft</strong> 适合日常使用，
+                <strong>Final</strong> 适合最终输出（渲染时间较长）。
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-aspect-ratio me-1"></i>视频分辨率
+              </label>
+              <div class="row g-2">
+                <div class="col-6">
+                  <input type="number" class="form-control" id="settingsWidth" value="1920" placeholder="宽度">
+                  <div class="form-text text-center">宽度 (px)</div>
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control" id="settingsHeight" value="1080" placeholder="高度">
+                  <div class="form-text text-center">高度 (px)</div>
+                </div>
+              </div>
+              <div class="form-text mt-2">
+                <i class="bi bi-grid-3x3-gap me-1"></i>
+                <strong>常用分辨率：</strong>
+                <span class="badge bg-secondary me-1">1920x1080</span>
+                <span class="badge bg-secondary me-1">1080x1920 (竖屏)</span>
+                <span class="badge bg-secondary">3840x2160 (4K)</span>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-film me-1"></i>帧率 (FPS)
+              </label>
+              <select class="form-select" id="settingsFps">
+                <option value="24">🎬 24 FPS - 电影感</option>
+                <option value="25">📺 25 FPS - PAL 制式</option>
+                <option value="30" selected>🎥 30 FPS - 标准视频</option>
+                <option value="60">⚡ 60 FPS - 高帧率</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 存储设置 -->
+        <div class="card">
+          <div class="card-header">
+            <h6 class="mb-0 fw-bold">
+              <i class="bi bi-hdd me-2"></i>存储设置
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">
+                <i class="bi bi-folder2-open me-1"></i>输出目录
+              </label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="settingsOutputDir" value="/outputs" readonly>
+                <button class="btn btn-outline-secondary" type="button" onclick="openOutputDir()">
+                  <i class="bi bi-folder-open me-1"></i>打开目录
+                </button>
+              </div>
+              <div class="form-text mt-2">
+                <i class="bi bi-hdd-stack me-1"></i>
+                生成的视频文件将保存在此目录。
+              </div>
+            </div>
+            
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <strong>服务器部署提示：</strong>
+              当前使用 localStorage 存储配置。部署到服务器时，建议切换到数据库模式。
+            </div>
+          </div>
+        </div>
+        
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle me-1"></i>取消
+        </button>
+        <button type="button" class="btn btn-outline-primary" onclick="resetSettings()">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>重置为默认值
+        </button>
+        <button type="button" class="btn btn-primary" onclick="saveSettings()">
+          <i class="bi bi-save me-1"></i>保存设置
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Settings Modal Functions
+
+// 质量预设参数
+const QUALITY_PRESETS = {
+  preview: { dpi: 72, bitrate: 4000, crf: 28 },
+  draft: { dpi: 108, bitrate: 8000, crf: 21 },
+  final: { dpi: 144, bitrate: 14000, crf: 17 }
+};
+
+// 提供商与 Base URL 映射
+const PROVIDER_BASE_URLS = {
+  openai: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com/v1',
+  dashscope: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  moonshot: 'https://api.moonshot.cn/v1'
+};
+
+// 切换 API Key 显示/隐藏（增强版）
+function toggleApiKeyVisibility() {
+  const apiKeyInput = document.getElementById('settingsApiKey');
+  const toggleIcon = document.getElementById('iconToggleApiKey');
+  const toggleBtn = document.getElementById('btnToggleApiKey');
+  
+  const isPassword = apiKeyInput.type === 'password';
+  
+  if (isPassword) {
+    // 切换到明文显示
+    apiKeyInput.type = 'text';
+    toggleIcon.className = 'bi bi-eye-slash-fill';
+    toggleBtn.title = '隐藏 API Key';
+    toggleBtn.classList.add('btn-warning');
+    toggleBtn.classList.remove('btn-outline-secondary');
+  } else {
+    // 切换到密文显示
+    apiKeyInput.type = 'password';
+    toggleIcon.className = 'bi bi-eye';
+    toggleBtn.title = '显示 API Key';
+    toggleBtn.classList.remove('btn-warning');
+    toggleBtn.classList.add('btn-outline-secondary');
+  }
+  
+  // 聚焦到输入框
+  apiKeyInput.focus();
+  apiKeyInput.select();
+}
+
+// 检查 API Key 是否已保存
+function checkApiKeyStatus() {
+  const savedKey = localStorage.getItem('openai_api_key');
+  const statusSpan = document.getElementById('apiKeyStatus');
+  
+  if (savedKey && savedKey.length > 0) {
+    const maskedKey = savedKey.substring(0, 4) + '••••' + savedKey.substring(savedKey.length - 4);
+    statusSpan.innerHTML = `<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>已保存：${maskedKey}</span>`;
+  } else {
+    statusSpan.innerHTML = `<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-circle-fill me-1"></i>未保存</span>`;
+  }
+}
+
+// 更新模型选项
+function updateModelOptions() {
+  const provider = document.getElementById('settingsProvider').value;
+  const modelSelect = document.getElementById('settingsModel');
+  const customModelInput = document.getElementById('settingsCustomModel');
+  const providerHint = document.getElementById('providerHint');
+  
+  // 隐藏所有 optgroup
+  document.querySelectorAll('#settingsModel optgroup').forEach(og => {
+    og.style.display = 'none';
+  });
+  
+  // 显示选中的提供商对应的 optgroup
+  const selectedOptgroup = document.getElementById(`optgroup-${provider}`);
+  if (selectedOptgroup) {
+    selectedOptgroup.style.display = 'block';
+    // 选中该组的第一个选项
+    const firstOption = selectedOptgroup.querySelector('option');
+    if (firstOption) {
+      modelSelect.value = firstOption.value;
+    }
+  }
+  
+  // 自定义模式显示输入框
+  if (provider === 'custom') {
+    customModelInput.style.display = 'block';
+    modelSelect.value = 'custom';
+    providerHint.innerHTML = '<i class="bi bi-lightbulb text-primary me-1"></i>手动输入模型名称，例如：<code>deepseek-coder</code> 或 <code>qwen-coder-plus</code>';
+  } else {
+    customModelInput.style.display = 'none';
+    // 更新提示文本
+    const hints = {
+      openai: '<i class="bi bi-lightbulb text-primary me-1"></i>首次使用建议选择 <code>gpt-3.5-turbo</code> 或 <code>gpt-4o-mini</code> 进行测试。',
+      deepseek: '<i class="bi bi-lightbulb text-primary me-1"></i>DeepSeek 支持对话和代码生成，推荐使用 <code>deepseek-chat</code> 或 <code>deepseek-coder</code>。',
+      dashscope: '<i class="bi bi-lightbulb text-primary me-1"></i>阿里云百炼平台用户请选择此项，推荐使用 <code>qwen-turbo</code> 或 <code>qwen-coder-plus</code>。',
+      moonshot: '<i class="bi bi-lightbulb text-primary me-1"></i>Moonshot 支持超长上下文，推荐使用 <code>moonshot-v1-8k</code> 进行测试。'
+    };
+    providerHint.innerHTML = hints[provider] || '';
+  }
+  
+  // 隐藏不匹配提示
+  document.getElementById('modelMismatchAlert').style.display = 'none';
+}
+
+// 切换提供商
+function switchProvider(provider) {
+  document.getElementById('settingsProvider').value = provider;
+  updateModelOptions();
+}
+
+// 加载设置
+function loadSettings() {
+  // 加载提供商设置
+  const provider = localStorage.getItem('llm_provider') || 'openai';
+  document.getElementById('settingsProvider').value = provider;
+  
+  // 根据提供商加载 Base URL
+  const savedBaseUrl = localStorage.getItem('openai_base_url');
+  if (savedBaseUrl) {
+    document.getElementById('settingsBaseUrl').value = savedBaseUrl;
+  } else if (PROVIDER_BASE_URLS[provider]) {
+    document.getElementById('settingsBaseUrl').value = PROVIDER_BASE_URLS[provider];
+  }
+  
+  // 加载 API Key 并检查状态
+  const savedApiKey = localStorage.getItem('openai_api_key') || '';
+  document.getElementById('settingsApiKey').value = savedApiKey;
+  checkApiKeyStatus();
+  
+  // 加载模型设置
+  const savedModel = localStorage.getItem('openai_model') || 'gpt-3.5-turbo';
+  
+  // 先更新模型选项，再设置值
+  updateModelOptions();
+  document.getElementById('settingsModel').value = savedModel;
+  
+  // 如果是自定义模型，显示输入框
+  if (provider === 'custom') {
+    document.getElementById('settingsCustomModel').value = savedModel;
+    document.getElementById('settingsCustomModel').style.display = 'block';
+  }
+  
+  document.getElementById('settingsQuality').value = localStorage.getItem('quality_preset') || 'draft';
+  document.getElementById('settingsWidth').value = localStorage.getItem('video_width') || 1920;
+  document.getElementById('settingsHeight').value = localStorage.getItem('video_height') || 1080;
+  document.getElementById('settingsFps').value = localStorage.getItem('video_fps') || 30;
+  updateQualityParams();
+}
+
+// 更新质量参数显示
+function updateQualityParams() {
+  const preset = QUALITY_PRESETS[document.getElementById('settingsQuality').value] || QUALITY_PRESETS.draft;
+  document.getElementById('qualityDpi').textContent = preset.dpi;
+  document.getElementById('qualityBitrate').textContent = preset.bitrate + 'k';
+  document.getElementById('qualityCrf').textContent = preset.crf;
+}
+
+// 验证 API 连接
+async function validateAPI() {
+  const btn = document.getElementById('btnValidateAPI');
+  const statusDiv = document.getElementById('apiStatus');
+  const provider = document.getElementById('settingsProvider').value;
+  let baseUrl = document.getElementById('settingsBaseUrl').value;
+  const apiKey = document.getElementById('settingsApiKey').value;
+  const modelMismatchAlert = document.getElementById('modelMismatchAlert');
+  
+  if (!apiKey) {
+    alert('⚠️ 请先填写 API Key');
+    return;
+  }
+  
+  // 如果 Base URL 为空，使用提供商默认 URL
+  if (!baseUrl && PROVIDER_BASE_URLS[provider]) {
+    baseUrl = PROVIDER_BASE_URLS[provider];
+    document.getElementById('settingsBaseUrl').value = baseUrl;
+  }
+  
+  // 禁用按钮，显示加载状态
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>验证中...';
+  statusDiv.innerHTML = '';
+  modelMismatchAlert.style.display = 'none';
+  
+  try {
+    // 尝试获取模型列表
+    const modelsResponse = await fetch(`${baseUrl}/models`, {
+      headers: { 
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      method: 'GET'
+    });
+    
+    if (modelsResponse.ok) {
+      const modelsData = await modelsResponse.json();
+      const availableModels = modelsData.data || [];
+      
+      // 获取当前选中的模型
+      let currentModel = document.getElementById('settingsModel').value;
+      if (provider === 'custom') {
+        currentModel = document.getElementById('settingsCustomModel').value.trim();
+      }
+      
+      // 检查当前模型是否在可用列表中
+      const modelExists = availableModels.some(m => m.id === currentModel || m.id.includes(currentModel));
+      
+      if (modelExists) {
+        // 模型可用
+        statusDiv.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>API 连接成功</span>';
+        alert(`✅ API 连接成功！\n\n可用模型数量：${availableModels.length}\n当前模型 "${currentModel}" 可用。`);
+        localStorage.setItem('openai_base_url', baseUrl);
+        localStorage.setItem('openai_api_key', apiKey);
+      } else {
+        // 模型不匹配，显示提示
+        statusDiv.innerHTML = '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>API 连接成功，但模型不可用</span>';
+        modelMismatchAlert.style.display = 'block';
+        
+        // 构建可用模型列表提示
+        const modelIds = availableModels.slice(0, 5).map(m => m.id).join(', ');
+        const moreText = availableModels.length > 5 ? ` 等共${availableModels.length}个模型` : '';
+        
+        alert(`⚠️ API 连接成功，但当前模型 "${currentModel}" 不可用。\n\n可用模型：${modelIds}${moreText}\n\n请切换提供商或手动输入模型名称。`);
+      }
+    } else {
+      const errorData = await modelsResponse.json().catch(() => ({}));
+      throw new Error(`HTTP ${modelsResponse.status}: ${errorData.error?.message || modelsResponse.statusText}`);
+    }
+  } catch (error) {
+    statusDiv.innerHTML = `<span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>${error.message}</span>`;
+    
+    // 判断是否是认证错误
+    if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+      alert(`❌ API Key 无效\n\n${error.message}\n\n请检查：\n1. API Key 是否正确\n2. Base URL 是否正确\n3. API Key 是否有余额`);
+    } else if (error.message.includes('403')) {
+      alert(`❌ API Key 无权限\n\n${error.message}\n\n可能原因：\n1. API Key 不支持当前 API 端点\n2. 需要开通相关服务\n\n建议：\n- 阿里云用户请确保开通了百炼平台服务\n- DeepSeek 用户请确保开通了 API 服务`);
+    } else {
+      alert(`❌ API 验证失败：${error.message}`);
+    }
+  } finally {
+    // 恢复按钮状态
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>验证连接';
+  }
+}
+
+// 保存设置
+function saveSettings() {
+  const provider = document.getElementById('settingsProvider').value;
+  let baseUrl = document.getElementById('settingsBaseUrl').value;
+  const apiKey = document.getElementById('settingsApiKey').value;
+  let model = document.getElementById('settingsModel').value;
+  const quality = document.getElementById('settingsQuality').value;
+  const width = parseInt(document.getElementById('settingsWidth').value) || 1920;
+  const height = parseInt(document.getElementById('settingsHeight').value) || 1080;
+  const fps = parseInt(document.getElementById('settingsFps').value) || 30;
+  
+  // 如果是自定义模型，使用输入框的值
+  if (provider === 'custom') {
+    const customModel = document.getElementById('settingsCustomModel').value.trim();
+    if (customModel) {
+      model = customModel;
+    } else {
+      alert('⚠️ 请输入自定义模型名称');
+      return;
+    }
+  }
+  
+  // 如果 Base URL 为空，使用提供商默认 URL
+  if (!baseUrl && PROVIDER_BASE_URLS[provider]) {
+    baseUrl = PROVIDER_BASE_URLS[provider];
+    document.getElementById('settingsBaseUrl').value = baseUrl;
+  }
+  
+  // 保存到 localStorage
+  localStorage.setItem('llm_provider', provider);
+  localStorage.setItem('openai_base_url', baseUrl);
+  localStorage.setItem('openai_api_key', apiKey);
+  localStorage.setItem('openai_model', model);
+  localStorage.setItem('quality_preset', quality);
+  localStorage.setItem('video_width', width);
+  localStorage.setItem('video_height', height);
+  localStorage.setItem('video_fps', fps);
+  
+  // 显示成功提示
+  const keyMasked = apiKey.length > 8 ? apiKey.substring(0, 4) + '••••' + apiKey.substring(apiKey.length - 4) : '••••';
+  alert('✅ 设置已保存！\n\n提供商：' + provider + '\n模型：' + model + '\nAPI Key: ' + keyMasked);
+  
+  // 更新 API Key 状态显示
+  checkApiKeyStatus();
+  
+  // 关闭模态框
+  const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+  if (modal) {
+    modal.hide();
+  }
+  
+  // 触发自定义事件，通知其他组件
+  window.dispatchEvent(new CustomEvent('settings-updated', {
+    detail: {
+      llm_provider: provider,
+      openai_base_url: baseUrl,
+      openai_api_key: apiKey,
+      openai_model: model,
+      quality_preset: quality,
+      video_width: width,
+      video_height: height,
+      video_fps: fps
+    }
+  }));
+}
+
+// 重置设置
+function resetSettings() {
+  if (confirm('确定要重置为默认设置吗？\n\n这将清除所有已保存的配置。')) {
+    localStorage.clear();
+    loadSettings();
+    alert('✅ 设置已重置为默认值！');
+  }
+}
+
+// 打开输出目录
+function openOutputDir() {
+  const outputDir = document.getElementById('settingsOutputDir').value;
+  alert(`输出目录：${outputDir}\n\n(实际打开目录功能需要后端支持)`);
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', loadSettings);
+
+// 如果 DOM 已加载完成，立即执行
+if (document.readyState !== 'loading') {
+  loadSettings();
+}
+</script>

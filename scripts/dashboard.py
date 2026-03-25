@@ -447,6 +447,15 @@ async def read_code_studio():
     return FileResponse(path)
 
 
+@app.get("/settings-modal.html")
+async def read_settings_modal():
+    """访问设置模态框页面"""
+    path = STATIC_DIR / "settings-modal.html"
+    if not path.exists():
+        return JSONResponse({"error": "Page not found"}, status_code=404)
+    return FileResponse(path)
+
+
 @app.get("/classic")
 async def read_classic():
     """访问旧版 Dashboard"""

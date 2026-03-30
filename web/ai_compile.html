@@ -203,25 +203,35 @@
                             <i class="bi bi-robot me-2"></i>AI 助手
                         </div>
                         
-                        <!-- Step 2: 编译完成 -->
-                        <div v-if="msg.type === 'compiled'">
-                            <div class="mb-3">
-                                <i class="bi bi-check-circle-fill text-success me-2"></i>
-                                已理解你的需求，为你生成了以下配置：
+                        <!-- Step 2: AI 生成剧本展示 -->
+                        <div v-if="msg.type === 'screenplay'">
+                            <div class="mb-2">
+                                <i class="bi bi-file-text-fill text-primary me-2"></i>
+                                <strong>{{ msg.screenplay.title }}</strong>
                             </div>
-                            <div class="code-preview mb-3">
-                                <div><span style="color:#9ca3af">项目:</span> {{ msg.data.project }}</div>
-                                <div><span style="color:#9ca3af">模板:</span> {{ msg.data.template }}</div>
-                                <div><span style="color:#9ca3af">品牌:</span> {{ msg.data.brand }}</div>
-                                <div><span style="color:#9ca3af">参数:</span> {{ JSON.stringify(msg.data.kwargs, null, 2).substring(0, 200) }}...</div>
+                            <p class="text-muted small mb-3">{{ msg.screenplay.logline }}</p>
+                            <div class="mb-3" style="max-height:200px;overflow-y:auto;">
+                                <div v-for="(scene, i) in msg.screenplay.scenes" :key="scene.id"
+                                     class="border-start border-2 border-primary ps-3 mb-2">
+                                    <small class="text-muted">场景 {{ i+1 }}（{{ scene.duration_est }}s）</small>
+                                    <div class="small">{{ scene.narration }}</div>
+                                </div>
                             </div>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm" @click="confirmAndExecute(msg.data)">
+                                <button class="btn btn-primary btn-sm" @click="executeFromScreenplay">
                                     <i class="bi bi-play-fill me-2"></i>确认执行
                                 </button>
-                                <button class="btn btn-outline-secondary btn-sm" @click="editParameters(msg.data)">
-                                    <i class="bi bi-pencil me-2"></i>编辑参数
+                                <button class="btn btn-outline-secondary btn-sm" @click="startNew">
+                                    <i class="bi bi-arrow-counterclockwise me-2"></i>重新描述
                                 </button>
+                            </div>
+                        </div>
+
+                        <!-- Step 2.5: AI 生成渲染脚本中 -->
+                        <div v-if="msg.type === 'compiling'">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                <span class="text-muted small">AI 正在生成渲染脚本...</span>
                             </div>
                         </div>
                         
@@ -312,7 +322,7 @@
                             <span class="typing-dot"></span>
                             <span class="typing-dot"></span>
                             <span class="typing-dot"></span>
-                            <small class="text-muted ms-1">AI 正在理解需求...</small>
+                            <small class="text-muted ms-1">{{ currentScreenplay ? 'AI 正在生成渲染脚本...' : 'AI 正在生成视频剧本...' }}</small>
                         </div>
                     </div>
                 </div>
@@ -378,6 +388,7 @@
                     aiResponses: [],
                     isProcessing: false,
                     lastPrompt: '',
+                    currentScreenplay: null,
                     showQuickSuggestions: true,
                     editData: {
                         template: '',
@@ -433,23 +444,16 @@
                         if (el) el.scrollTop = el.scrollHeight
                     })
                     const controller = new AbortController()
-                    const tid = setTimeout(() => controller.abort(), 30000)
+                    const tid = setTimeout(() => controller.abort(), 60000)
 
                     try {
-                        const res = await fetch('/api/studio/v1/agent/compile', {
+                        const res = await fetch('/api/studio/v1/agent/screenplay', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                prompt: prompt,
-                                persist_turns: false
-                            }),
+                            body: JSON.stringify({ prompt, platform: 'douyin' }),
                             signal: controller.signal
                         })
                         clearTimeout(tid)
-
-                        if (res.status === 404) {
-                            throw new Error('AI 编译服务未部署，请检查后端 agent/compile 接口')
-                        }
 
                         if (!res.ok) {
                             const errData = await res.json().catch(() => ({}))
@@ -458,25 +462,17 @@
 
                         const data = await res.json()
 
-                        if (data.success && data.standard_request) {
-                            this.aiResponses.push({
-                                type: 'compiled',
-                                data: {
-                                    template: data.standard_request.kwargs?.template || 'bar_chart_race',
-                                    brand: data.standard_request.kwargs?.brand || 'corporate',
-                                    project: data.standard_request.project,
-                                    kwargs: data.standard_request.kwargs
-                                }
-                            })
+                        if (data.success && data.screenplay) {
+                            this.currentScreenplay = data.screenplay
+                            this.aiResponses.push({ type: 'screenplay', screenplay: data.screenplay })
                         } else {
-                            const errors = (data.errors || []).join('；')
-                            throw new Error(errors || 'AI 未能理解该需求，请尝试更具体的描述')
+                            throw new Error(data.error || 'AI 无法生成剧本，请重新描述需求')
                         }
 
                     } catch (e) {
                         clearTimeout(tid)
                         const msg = e.name === 'AbortError'
-                            ? 'AI 请求超时（30s），请检查网络或服务状态'
+                            ? 'AI 请求超时（60s），请检查网络或服务状态'
                             : e.message
                         this.aiResponses.push({ type: 'error', error: msg })
                     }
@@ -486,6 +482,43 @@
                         const el = document.getElementById('chatMessages')
                         if (el) el.scrollTop = el.scrollHeight
                     })
+                },
+
+                async executeFromScreenplay() {
+                    if (!this.currentScreenplay) return
+                    this.aiResponses.push({ type: 'compiling' })
+                    this.isProcessing = true
+                    this.$nextTick(() => {
+                        const el = document.getElementById('chatMessages')
+                        if (el) el.scrollTop = el.scrollHeight
+                    })
+
+                    try {
+                        const sp = this.currentScreenplay
+                        const compilePrompt = `${sp.title}。${sp.logline}`
+
+                        const cr = await fetch('/api/studio/v1/agent/compile', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt: compilePrompt, persist_turns: false })
+                        })
+                        if (!cr.ok) throw new Error(`编译失败 (HTTP ${cr.status})`)
+                        const cd = await cr.json()
+                        if (!cd.success || !cd.standard_request) {
+                            throw new Error((cd.errors || []).join('；') || 'AI 编译渲染脚本失败')
+                        }
+
+                        this.aiResponses.pop()
+                        this.isProcessing = false
+                        this.confirmAndExecute({
+                            project: cd.standard_request.project,
+                            kwargs: cd.standard_request.kwargs
+                        })
+                    } catch (e) {
+                        this.aiResponses.pop()
+                        this.aiResponses.push({ type: 'error', error: e.message })
+                        this.isProcessing = false
+                    }
                 },
                 
                 async confirmAndExecute(data) {
@@ -604,12 +637,14 @@
                 startNew() {
                     this.messages = []
                     this.aiResponses = []
+                    this.currentScreenplay = null
                     this.showQuickSuggestions = true
                     this.isProcessing = false
                 },
-                
+
                 retryCompilation() {
                     this.aiResponses = this.aiResponses.filter(m => m.type !== 'error')
+                    this.currentScreenplay = null
                     if (this.lastPrompt) {
                         this.processAIRequest(this.lastPrompt)
                     } else {

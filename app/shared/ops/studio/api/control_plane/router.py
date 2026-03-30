@@ -207,4 +207,26 @@ def create_v1_router(get_registry: Callable[[], ProjectRegistry]) -> APIRouter:
         reg.discover()
         return validate_body(req, reg)
 
+    class ScreenplayGenerateRequest(BaseModel):
+        prompt: str
+        platform: str = "douyin"
+
+    @router.post("/agent/screenplay")
+    def api_agent_screenplay(body: ScreenplayGenerateRequest) -> dict[str, Any]:
+        """Step 1: 将用户自然语言需求生成视频剧本（Screenplay）。"""
+        from shared.ai.content.ai_planner import ai_planner
+        try:
+            result = ai_planner.preview_screenplay(
+                topic=body.prompt,
+                style="tech",
+                platform=body.platform,
+            )
+            return {
+                "success": True,
+                "screenplay": result.screenplay.model_dump(),
+                "provider_used": result.provider_used,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     return router

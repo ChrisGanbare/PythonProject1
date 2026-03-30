@@ -135,6 +135,18 @@
 
         /* Vue 初始化前隐藏模板，防止原始插值/指令暴露 */
         [v-cloak] { display: none !important; }
+
+        /* AI 打字动画 */
+        .typing-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            background: #999; margin: 0 2px; animation: typing-bounce 1.2s infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: .2s; }
+        .typing-dot:nth-child(3) { animation-delay: .4s; }
+        @keyframes typing-bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-8px); }
+        }
     </style>
 </head>
 <body>
@@ -169,7 +181,7 @@
         <!-- Main Card -->
         <div class="main-card">
             <!-- Chat Messages -->
-            <div class="chat-messages mb-4" style="max-height: 500px; overflow-y: auto;">
+            <div class="chat-messages mb-4" id="chatMessages" style="max-height: 500px; overflow-y: auto;">
                 <!-- Welcome Message -->
                 <div class="chat-message ai">
                     <div class="message-bubble">
@@ -293,6 +305,17 @@
                         </div>
                     </div>
                 </div>
+                <!-- AI Typing Indicator -->
+                <div class="chat-message ai" v-if="isProcessing">
+                    <div class="message-bubble" style="background:#f0f4ff;">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <small class="text-muted ms-1">AI 正在理解需求...</small>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Input Area -->
@@ -321,7 +344,9 @@
                         :disabled="isProcessing"
                     >
                     <button class="btn btn-primary btn-lg" @click="sendMessage" :disabled="!userInput || isProcessing">
-                        <i class="bi bi-send-fill me-2"></i>发送
+                        <span v-if="isProcessing" class="spinner-border spinner-border-sm me-2"></span>
+                        <i v-else class="bi bi-send-fill me-2"></i>
+                        {{ isProcessing ? '处理中...' : '发送' }}
                     </button>
                 </div>
             </div>
@@ -401,7 +426,13 @@
                 
                 async processAIRequest(prompt) {
                     this.isProcessing = true
-                    
+                    this.$nextTick(() => {
+                        const el = document.getElementById('chatMessages')
+                        if (el) el.scrollTop = el.scrollHeight
+                    })
+                    const controller = new AbortController()
+                    const tid = setTimeout(() => controller.abort(), 30000)
+
                     try {
                         const res = await fetch('/api/studio/v1/agent/compile', {
                             method: 'POST',
@@ -409,20 +440,22 @@
                             body: JSON.stringify({
                                 prompt: prompt,
                                 persist_turns: false
-                            })
+                            }),
+                            signal: controller.signal
                         })
-                        
+                        clearTimeout(tid)
+
                         if (res.status === 404) {
                             throw new Error('AI 编译服务未部署，请检查后端 agent/compile 接口')
                         }
-                        
+
                         if (!res.ok) {
                             const errData = await res.json().catch(() => ({}))
                             throw new Error(errData.detail || `服务端错误 (HTTP ${res.status})`)
                         }
-                        
+
                         const data = await res.json()
-                        
+
                         if (data.success && data.standard_request) {
                             this.aiResponses.push({
                                 type: 'compiled',
@@ -437,15 +470,20 @@
                             const errors = (data.errors || []).join('；')
                             throw new Error(errors || 'AI 未能理解该需求，请尝试更具体的描述')
                         }
-                        
+
                     } catch (e) {
-                        this.aiResponses.push({
-                            type: 'error',
-                            error: e.message
-                        })
+                        clearTimeout(tid)
+                        const msg = e.name === 'AbortError'
+                            ? 'AI 请求超时（30s），请检查网络或服务状态'
+                            : e.message
+                        this.aiResponses.push({ type: 'error', error: msg })
                     }
-                    
+
                     this.isProcessing = false
+                    this.$nextTick(() => {
+                        const el = document.getElementById('chatMessages')
+                        if (el) el.scrollTop = el.scrollHeight
+                    })
                 },
                 
                 async confirmAndExecute(data) {

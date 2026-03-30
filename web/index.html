@@ -824,16 +824,27 @@
                         const createData = await createRes.json()
                         const jobId = createData.job_id
                         this.generatingMessage = '渲染中...'
-                        
+
+                        const PROGRESS_MSGS = [
+                            [0,  '提交任务...'],
+                            [5,  '初始化渲染...'],
+                            [15, '生成动画帧...'],
+                            [30, '合成视频...'],
+                            [50, '编码输出...'],
+                            [70, '优化质量...'],
+                            [85, '即将完成...'],
+                        ]
                         let attempts = 0
                         const maxAttempts = 90
                         const poll = async () => {
                             try {
                                 const statusRes = await fetch(`/api/video/v2/status/${jobId}`)
                                 const statusData = await statusRes.json()
-                                
-                                this.generateProgress = statusData.progress || Math.min(90, 10 + attempts * 2)
-                                this.generatingMessage = statusData.message || '处理中...'
+
+                                const elapsed = Math.floor(attempts * 2)
+                                const stage = [...PROGRESS_MSGS].reverse().find(([t]) => attempts >= t)
+                                this.generateProgress = statusData.progress || Math.min(88, 5 + attempts * 1.8)
+                                this.generatingMessage = statusData.message || `${stage[1]}（已等待 ${elapsed} 秒）`
                                 
                                 if (statusData.status === 'completed') {
                                     this.isGenerating = false

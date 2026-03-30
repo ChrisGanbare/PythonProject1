@@ -7,7 +7,6 @@ from pydantic import BaseModel
 from shared.ai.content.schemas import ContentPlan, ContentStyle, ContentVariant, StoryBeatType, SubtitleCue
 from shared.ai.content.render_timeline import RenderTimeline
 from shared.ai.content.themes import get_style_theme_preset
-from shared.output.platform.presets import get_platform_preset
 
 
 class ThemeTokens(BaseModel):
@@ -458,16 +457,19 @@ def _build_cover_tokens(
 
 
 def _build_safe_area_tokens(platform: str) -> SafeAreaTokens:
+    from shared.output.platform.presets import get_platform_preset
     preset = get_platform_preset(platform)
     return SafeAreaTokens(**preset.to_safe_area_dict())
 
 
 def _build_subtitle_layout_tokens(platform: str) -> SubtitleLayoutTokens:
+    from shared.output.platform.presets import get_platform_preset
     preset = get_platform_preset(platform)
     return SubtitleLayoutTokens(**preset.to_subtitle_layout_dict())
 
 
 def _build_scene_copy_band_tokens(platform: str, theme: ThemeTokens, card: CardTokens) -> SceneCopyBandTokens:
+    from shared.output.platform.presets import get_platform_preset
     preset = get_platform_preset(platform)
     payload = dict(preset.to_scene_copy_band_dict())
     payload.update(

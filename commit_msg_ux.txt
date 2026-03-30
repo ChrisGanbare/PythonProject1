@@ -1,0 +1,22 @@
+fix: 用户体验优化 - 移除已删除功能入口，同步文档
+
+前端修复:
+- 删除首页"代码工坊"入口卡片
+- 删除 projects.html 顶部"代码工坊"导航链接
+- 删除 web/code_studio.html 文件
+- 标注 index_old.html 为已废弃版本
+
+文档同步:
+- README.md: 移除代码工坊页面引用，更正项目结构（app/、web/）
+- README.md: 修正浏览器测试命令（删除 requirements-e2e-ui.txt 引用）
+- 业务落地说明: 修正 UI 自动化文档链接 (tests/browser/)
+
+验证结果:
+- 183 passed, 11 skipped, 0 failed
+- doctor 自检全部通过
+- Dashboard 服务启动正常
+
+用户体验改进:
+- 新用户不会看到不可用的功能入口
+- 文档与实际代码完全一致
+- 启动引导清晰（python main.py 提示 + doctor 自检）

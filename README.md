@@ -62,7 +62,6 @@ docker compose -f docker/docker-compose.yml up dashboard
 | 首页 / 向导 | http://localhost:8090 | 4 步创建视频 |
 | AI 编译 | http://localhost:8090/ai_compile.html | 聊天式生成 |
 | 项目管理 | http://localhost:8090/projects.html | 项目列表与执行历史 |
-| 代码工坊 | http://localhost:8090/code_studio.html | 开发者工具 |
 | API 文档 | http://localhost:8090/docs | OpenAPI 交互文档 |
 
 ---
@@ -105,38 +104,39 @@ PythonProject1/
 ├── .env.example         # 环境变量模板
 │
 │  ── 业务逻辑 ───────────────────────────────────────────────
-├── api/                 # API 层（路由注册，与 dashboard 共用同一应用）
-├── core/                # 核心渲染引擎（模板、品牌、视频合成）
-├── orchestrator/        # 子项目发现、调度、脚手架
-├── projects/            # 领域子项目（loan_comparison / fund_fee_erosion 等）
-├── shared/              # 跨模块共享库
-│   ├── agent/           # AI Agent 编译与验证
-│   ├── content/         # 脚本/内容规划
-│   ├── studio/          # 作业生命周期 + DB
-│   ├── visualization/   # 可视化后端（plotly/matplotlib）
-│   └── webapp/          # FastAPI 路由模块（dashboard 的主体）
+├── app/
+│   ├── api/                # HTTP 路由（v2 快速图表视频）
+│   ├── core/               # v2 渲染引擎（模板、品牌、视频合成）
+│   ├── orchestrator/       # 子项目发现、调度、脚手架
+│   ├── projects/           # 领域子项目（loan_comparison / fund_fee_erosion 等）
+│   ├── scripts/            # 服务入口（dashboard.py / scheduler.py）
+│   └── shared/             # 跨模块共享库
+│       ├── ai/             # AI 智能层（agent、content 规划）
+│       ├── render/         # 渲染引擎（visualization、media、core）
+│       ├── output/         # 输出适配（platform、library）
+│       └── ops/            # 运维基础（studio、webapp、config、utils）
 │
 │  ── 前端 ───────────────────────────────────────────────────
-├── static/              # Web 前端（HTML / JS / CSS / 第三方库）
-│   ├── index.html       # 主页（4 步向导）
-│   ├── js/              # Vue 3 应用逻辑
-│   └── vendor/          # Bootstrap / Vue 离线包
+├── web/                    # Web 前端（HTML / JS / CSS）
+│   ├── index.html          # 主页（4 步向导）
+│   ├── ai_compile.html     # AI 意图编译
+│   ├── projects.html       # 项目管理
+│   ├── js/                 # Vue 3 应用逻辑
+│   └── vendor/             # Bootstrap / Vue 离线包
 │
 │  ── 测试 ───────────────────────────────────────────────────
 ├── tests/
-│   ├── unit/            # 单元测试（单一模块，纯函数）
-│   ├── integration/     # 集成测试（多模块协作、DB、HTTP）
-│   ├── e2e/             # 端到端 API 测试（真实 HTTP）
-│   ├── browser/         # Playwright 浏览器 UI 测试
-│   └── uat/             # 用户验收测试（需真实 LLM 密钥）
+│   ├── unit/               # 单元测试（单一模块，纯函数）
+│   ├── integration/        # 集成测试（多模块协作、DB、HTTP）
+│   ├── e2e/                # 端到端 API 测试（真实 HTTP）
+│   ├── browser/            # Playwright 浏览器 UI 测试
+│   └── uat/                # 用户验收测试（需真实 LLM 密钥）
 │
 │  ── 运维 / 辅助 ────────────────────────────────────────────
-├── docker/              # Dockerfile + docker-compose.yml
-├── docs/                # 技术与运营文档
-├── examples/            # 演示脚本与工具（demo_*.py / 辅助工具）
-├── scripts/             # 服务入口（dashboard.py / scheduler.py 主体）
-├── runtime/             # 运行时数据（输出视频 / SQLite / 日志，gitignore）
-└── poc/                 # 概念验证子目录（独立可运行）
+├── docker/                 # Dockerfile + docker-compose.yml
+├── docs/                   # 技术与运营文档
+├── examples/               # 演示脚本与工具（demo_*.py / 辅助工具）
+└── runtime/                # 运行时数据（输出视频 / SQLite / 日志，gitignore）
 ```
 
 ---
@@ -160,7 +160,7 @@ python -m pytest tests/e2e/test_dashboard_e2e.py tests/integration/test_studio_d
 python -m pytest tests/ --ignore=tests/browser --ignore=tests/uat -q
 
 # 浏览器 UI 测试（需先安装 playwright）
-pip install -r requirements-e2e-ui.txt
+pip install playwright
 python -m playwright install chromium
 python -m pytest tests/browser/test_dashboard_ui_walkthrough.py -m browser -q
 ```

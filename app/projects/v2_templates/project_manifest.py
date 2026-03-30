@@ -29,8 +29,23 @@ PROJECT_MANIFEST = {
                 {
                     "name": "data",
                     "type": "object",
-                    "description": "图表数据，格式示例：{\"categories\": [\"A\", \"B\", \"C\"], \"values\": [10, 20, 30]}",
-                    "default": {},
+                    "description": (
+                        "图表数据，必须是列式 dict，键名与模板严格对应。"
+                        "bar_chart_race / bar_chart_horizontal / area_chart_stacked 格式："
+                        "{\"date\":[\"2022\",\"2022\",\"2023\",\"2023\"],"
+                        "\"category\":[\"A\",\"B\",\"A\",\"B\"],"
+                        "\"value\":[100,200,120,180]}；"
+                        "line_chart_animated 格式："
+                        "{\"date\":[\"1月\",\"2月\",\"3月\"],"
+                        "\"series\":[\"产品A\",\"产品A\",\"产品A\"],"
+                        "\"value\":[10,20,15]}；"
+                        "scatter_plot_dynamic 格式："
+                        "{\"x\":[1,2,3],\"y\":[4,5,6],\"category\":[\"A\",\"B\",\"A\"]}；"
+                        "bubble_chart 格式："
+                        "{\"x\":[1,2],\"y\":[3,4],\"size\":[10,20],\"category\":[\"A\",\"B\"]}。"
+                        "若用户未提供数据，填 null（entrypoints 会自动生成示例数据）"
+                    ),
+                    "default": None,
                 },
                 {
                     "name": "brand",

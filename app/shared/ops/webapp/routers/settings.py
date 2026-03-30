@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -31,6 +32,8 @@ class SettingsResponse(BaseModel):
     pexels_api_key: str | None = None
 
     screenplay_provider_default: str
+    output_dir: str | None = None
+    api_key_configured: bool = False
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -47,6 +50,7 @@ class SettingsUpdateRequest(BaseModel):
     pexels_api_key: str | None = None
 
     screenplay_provider_default: str | None = None
+    output_dir: str | None = None
 
 
 class ValidateOpenAIRequest(BaseModel):
@@ -73,6 +77,8 @@ async def get_settings():
         openai_model=settings.api.openai_compatible_model,
         pexels_api_key=mask_secret(settings.api.pexels_api_key),
         screenplay_provider_default=settings.api.screenplay_provider_default,
+        output_dir=str(settings.video.output_dir),
+        api_key_configured=bool(settings.api.openai_compatible_api_key),
     )
 
 
@@ -126,6 +132,15 @@ async def update_settings(request: SettingsUpdateRequest):
     if request.screenplay_provider_default:
         settings.api.screenplay_provider_default = request.screenplay_provider_default
         updates["screenplay_provider_default"] = request.screenplay_provider_default
+
+    if request.output_dir:
+        from pathlib import Path
+        p = Path(request.output_dir).resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        if not os.access(p, os.W_OK):
+            raise HTTPException(status_code=400, detail=f"路径不可写：{p}")
+        settings.video.output_dir = p
+        updates["output_dir"] = str(p)
 
     try:
         update_env_file(updates)

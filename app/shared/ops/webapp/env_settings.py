@@ -30,6 +30,7 @@ def update_env_file(updates: dict[str, Any]) -> None:
         "openai_model": "API__OPENAI_COMPATIBLE_MODEL",
         "pexels_api_key": "API__PEXELS_API_KEY",
         "screenplay_provider_default": "API__SCREENPLAY_PROVIDER_DEFAULT",
+        "output_dir": "VIDEO__OUTPUT_DIR",
     }
 
     new_lines: list[str] = []

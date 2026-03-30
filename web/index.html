@@ -940,13 +940,19 @@
             
             <div class="mb-3">
               <label class="form-label fw-bold">API Key <span class="text-danger">*</span></label>
-              <input type="password" 
-                     class="form-control font-monospace" 
+              <div id="apiKeyStatus" class="mb-2" style="display:none">
+                <span class="badge bg-success">
+                  <i class="bi bi-shield-check me-1"></i>已在服务端配置
+                </span>
+                <small class="text-muted ms-2">如需更换，直接填写新 Key 后保存</small>
+              </div>
+              <input type="password"
+                     class="form-control font-monospace"
                      id="settingsApiKey"
                      placeholder="sk-..."
                      autocomplete="off">
               <div class="form-text">
-                请妥善保管您的 API Key，不会上传到服务器。
+                API Key 保存在服务端，不经过浏览器缓存。
               </div>
             </div>
             
@@ -1119,21 +1125,12 @@
           <div class="card-body">
             <div class="mb-3">
               <label class="form-label fw-bold">输出目录</label>
-              <div class="input-group">
-                <input type="text" class="form-control" id="settingsOutputDir" value="/outputs" readonly>
-                <button class="btn btn-outline-secondary" type="button" onclick="openOutputDir()">
-                  <i class="bi bi-folder2-open"></i> 打开
-                </button>
+              <input type="text" class="form-control" id="settingsOutputDir"
+                     placeholder="留空使用默认路径 (runtime/outputs)">
+              <div class="form-text text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                服务器部署时可填写绝对路径，如 <code>/mnt/nas/videos</code>；目录不存在时自动创建。
               </div>
-              <div class="form-text">
-                生成的视频文件将保存在此目录。
-              </div>
-            </div>
-            
-            <div class="alert alert-warning small">
-              <i class="bi bi-exclamation-triangle me-1"></i>
-              <strong>服务器部署提示：</strong>
-              当前使用 localStorage 存储配置。部署到服务器时，建议切换到数据库模式。
             </div>
           </div>
         </div>
@@ -1234,25 +1231,32 @@ function loadSettings() {
     document.getElementById('settingsBaseUrl').value = PROVIDER_BASE_URLS[provider];
   }
   
-  document.getElementById('settingsApiKey').value = localStorage.getItem('openai_api_key') || '';
-  
+  document.getElementById('settingsApiKey').value = '';
+  const keyConfigured = localStorage.getItem('api_key_configured') === '1';
+  const keyStatus = document.getElementById('apiKeyStatus');
+  if (keyStatus) {
+    keyStatus.style.display = keyConfigured ? 'block' : 'none';
+    document.getElementById('settingsApiKey').placeholder = keyConfigured ? '留空保持现有配置' : 'sk-...';
+  }
+
   // 加载模型设置
   const savedModel = localStorage.getItem('openai_model') || 'gpt-3.5-turbo';
-  
+
   // 先更新模型选项，再设置值
   updateModelOptions();
   document.getElementById('settingsModel').value = savedModel;
-  
+
   // 如果是自定义模型，显示输入框
   if (provider === 'custom') {
     document.getElementById('settingsCustomModel').value = savedModel;
     document.getElementById('settingsCustomModel').style.display = 'block';
   }
-  
+
   document.getElementById('settingsQuality').value = localStorage.getItem('quality_preset') || 'draft';
   document.getElementById('settingsWidth').value = localStorage.getItem('video_width') || 1920;
   document.getElementById('settingsHeight').value = localStorage.getItem('video_height') || 1080;
   document.getElementById('settingsFps').value = localStorage.getItem('video_fps') || 30;
+  document.getElementById('settingsOutputDir').value = localStorage.getItem('output_dir') || '';
   updateQualityParams();
 }
 
@@ -1380,15 +1384,16 @@ async function saveSettings() {
     document.getElementById('settingsBaseUrl').value = baseUrl;
   }
   
-  // 保存到 localStorage
+  // 保存到 localStorage（不再缓存 API Key）
   localStorage.setItem('llm_provider', provider);
   localStorage.setItem('openai_base_url', baseUrl);
-  localStorage.setItem('openai_api_key', apiKey);
   localStorage.setItem('openai_model', model);
   localStorage.setItem('quality_preset', quality);
   localStorage.setItem('video_width', width);
   localStorage.setItem('video_height', height);
   localStorage.setItem('video_fps', fps);
+  const outputDir = document.getElementById('settingsOutputDir').value.trim();
+  if (outputDir) localStorage.setItem('output_dir', outputDir);
 
   // 同步到后端
   const saveBtn = document.querySelector('.modal-footer .btn-primary');
@@ -1402,6 +1407,7 @@ async function saveSettings() {
         openai_api_key: apiKey || null,
         openai_base_url: baseUrl || null,
         openai_model: model || null,
+        output_dir: outputDir || null,
         video_width: width,
         video_height: height,
         video_fps: fps
@@ -1409,6 +1415,10 @@ async function saveSettings() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || '保存失败');
+
+    // 保存成功后刷新 Key 配置状态
+    await syncSettingsFromServer();
+    loadSettings();
 
     const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
     if (modal) modal.hide();
@@ -1458,7 +1468,9 @@ async function syncSettingsFromServer() {
     if (!res.ok) return;
     const data = await res.json();
     if (data.openai_base_url) localStorage.setItem('openai_base_url', data.openai_base_url);
-    if (data.openai_model) localStorage.setItem('openai_model', data.openai_model);
+    if (data.openai_model)    localStorage.setItem('openai_model', data.openai_model);
+    if (data.output_dir)      localStorage.setItem('output_dir', data.output_dir);
+    localStorage.setItem('api_key_configured', data.api_key_configured ? '1' : '0');
   } catch (e) { /* 离线时用 localStorage */ }
 }
 

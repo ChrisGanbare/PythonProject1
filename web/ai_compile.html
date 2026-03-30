@@ -377,6 +377,7 @@
                     messages: [],
                     aiResponses: [],
                     isProcessing: false,
+                    lastPrompt: '',
                     showQuickSuggestions: true,
                     editData: {
                         template: '',
@@ -418,6 +419,7 @@
                     })
                     
                     // Process with AI
+                    this.lastPrompt = this.userInput
                     this.processAIRequest(this.userInput)
                     
                     this.userInput = ''
@@ -608,8 +610,12 @@
                 
                 retryCompilation() {
                     this.aiResponses = this.aiResponses.filter(m => m.type !== 'error')
-                    this.isProcessing = false
-                    this.showQuickSuggestions = true
+                    if (this.lastPrompt) {
+                        this.processAIRequest(this.lastPrompt)
+                    } else {
+                        this.isProcessing = false
+                        this.showQuickSuggestions = true
+                    }
                 },
 
                 goHome() {

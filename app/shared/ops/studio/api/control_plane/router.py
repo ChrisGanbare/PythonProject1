@@ -52,6 +52,11 @@ class JobFromTemplateRequest(BaseModel):
     session_id: str | None = Field(default=None, description="可选，关联意图会话")
 
 
+class ScreenplayGenerateRequest(BaseModel):
+    prompt: str
+    platform: str = "douyin"
+
+
 def create_v1_router(get_registry: Callable[[], ProjectRegistry]) -> APIRouter:
     router = APIRouter()
 
@@ -206,10 +211,6 @@ def create_v1_router(get_registry: Callable[[], ProjectRegistry]) -> APIRouter:
         reg = get_registry()
         reg.discover()
         return validate_body(req, reg)
-
-    class ScreenplayGenerateRequest(BaseModel):
-        prompt: str
-        platform: str = "douyin"
 
     @router.post("/agent/screenplay")
     def api_agent_screenplay(body: ScreenplayGenerateRequest) -> dict[str, Any]:

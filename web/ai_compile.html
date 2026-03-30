@@ -402,7 +402,14 @@
                     configMissing: false
                 }
             },
+            watch: {
+                messages:       { handler() { this._saveState() }, deep: true },
+                aiResponses:    { handler() { this._saveState() }, deep: true },
+                currentScreenplay() { this._saveState() },
+                lastPrompt()        { this._saveState() },
+            },
             async mounted() {
+                this._restoreState()
                 try {
                     const res = await fetch('/api/settings')
                     if (!res.ok) throw new Error('API 不可用')
@@ -640,6 +647,7 @@
                     this.currentScreenplay = null
                     this.showQuickSuggestions = true
                     this.isProcessing = false
+                    localStorage.removeItem('aiCompile_state')
                 },
 
                 retryCompilation() {
@@ -656,10 +664,38 @@
                 goHome() {
                     window.location.href = '/'
                 },
-                
+
                 sleep(ms) {
                     return new Promise(resolve => setTimeout(resolve, ms))
-                }
+                },
+
+                _saveState() {
+                    const responses = this.aiResponses.filter(m => m.type !== 'compiling' && m.type !== 'executing')
+                    try {
+                        localStorage.setItem('aiCompile_state', JSON.stringify({
+                            messages: this.messages,
+                            aiResponses: responses,
+                            lastPrompt: this.lastPrompt,
+                            currentScreenplay: this.currentScreenplay,
+                            showQuickSuggestions: this.showQuickSuggestions,
+                        }))
+                    } catch (e) {}
+                },
+
+                _restoreState() {
+                    try {
+                        const raw = localStorage.getItem('aiCompile_state')
+                        if (!raw) return
+                        const s = JSON.parse(raw)
+                        if (s.messages?.length) this.messages = s.messages
+                        if (s.aiResponses?.length) this.aiResponses = s.aiResponses
+                        if (s.lastPrompt) this.lastPrompt = s.lastPrompt
+                        if (s.currentScreenplay) this.currentScreenplay = s.currentScreenplay
+                        if (s.messages?.length || s.aiResponses?.length) this.showQuickSuggestions = false
+                    } catch (e) {
+                        localStorage.removeItem('aiCompile_state')
+                    }
+                },
             }
         }).mount('#app')
         document.getElementById('page-loading').style.setProperty('display','none','important')

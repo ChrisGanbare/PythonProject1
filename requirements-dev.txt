@@ -1,0 +1,22 @@
+# ============================================================
+# 开发 / 测试依赖（Development & Testing）
+# pip install -r requirements.txt -r requirements-dev.txt
+# ============================================================
+
+# 测试框架
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-asyncio>=0.21.0
+pytest-timeout>=2.0.0
+
+# 代码质量
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# HTTP 测试客户端（FastAPI 测试用）
+httpx>=0.25.0
+
+# UI 自动化（Playwright 浏览器测试）
+# 安装后还需执行: python -m playwright install chromium
+playwright>=1.40.0

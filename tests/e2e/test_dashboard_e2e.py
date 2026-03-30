@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import uuid
@@ -22,8 +22,8 @@ def test_index_html(client):
     # But if not, we create a dummy one for test isolation if needed.
     # We'll just check if it gets 200 or 404.
     response = client.get("/")
-    if not (REPO_ROOT / "static" / "index.html").exists():
-        pytest.skip("static/index.html not found, skipping UI test")
+    if not (REPO_ROOT / "web" / "index.html").exists():
+        pytest.skip("web/index.html not found, skipping UI test")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
 
@@ -101,7 +101,14 @@ def test_inspect_loan_animation(client):
     
     assert "output_file" in params
     assert "platform" in params
-    assert params["platform"]["type"] in ["str", "NoneType", "any", "Optional"] # Inspection logic varies by python version/typing
+    assert params["platform"]["type"] in [
+        "str",
+        "NoneType",
+        "any",
+        "Optional",
+        "str | None",
+        "Optional[str]",
+    ]  # typing 因版本而异
 
 
 def test_inspect_intro_video_task(client):
@@ -116,7 +123,7 @@ def test_inspect_intro_video_task(client):
     assert "topic" in params
     assert "screenplay" in params
 
-@patch("shared.studio.services.job_lifecycle.run_project_task")
+@patch("shared.ops.studio.services.job_lifecycle.run_project_task")
 def test_run_task(mock_run, client):
     """Test running a task via API (mocked execution)."""
     mock_run.return_value = {"status": "mocked_success"}
@@ -138,7 +145,7 @@ def test_run_task(mock_run, client):
     assert call_kwargs["task_kwargs"] == {"foo": "bar"}
 
 
-@patch("shared.studio.services.job_lifecycle.run_project_task")
+@patch("shared.ops.studio.services.job_lifecycle.run_project_task")
 def test_job_status_hydrates_scene_schedule_from_sidecar(mock_run, client, tmp_path: Path):
     sidecar_path = tmp_path / "demo.scene_schedule.json"
     sidecar_path.write_text(
@@ -166,21 +173,21 @@ def test_job_status_hydrates_scene_schedule_from_sidecar(mock_run, client, tmp_p
     assert response.status_code == 200
     job_id = response.json()["job_id"]
 
-    job_response = client.get(f"/api/jobs/{job_id}")
+    job_response = client.get(f"/api/studio/v1/jobs/{job_id}")
     assert job_response.status_code == 200
     payload = job_response.json()
     assert payload["status"] == "success"
     assert payload["result"]["scene_schedule_path"] == str(sidecar_path)
     assert payload["result"]["scene_schedule"]["scenes"][0]["scene_id"] == "scene_01_hook"
     assert payload["result"]["scene_schedule"]["scenes"][0]["mood"] == "dramatic"
-    assert payload["result"]["scene_schedule_download_url"] == f"/api/jobs/{job_id}/scene-schedule"
+    assert payload["result"]["scene_schedule_download_url"] == f"/api/studio/v1/jobs/{job_id}/scene-schedule"
 
     download_response = client.get(payload["result"]["scene_schedule_download_url"])
     assert download_response.status_code == 200
     assert "application/json" in download_response.headers["content-type"]
 
 
-@patch("shared.studio.services.job_lifecycle.run_project_task")
+@patch("shared.ops.studio.services.job_lifecycle.run_project_task")
 def test_job_status_normalizes_inline_scene_schedule(mock_run, client):
     mock_run.return_value = {
         "scene_schedule": {
@@ -198,13 +205,13 @@ def test_job_status_normalizes_inline_scene_schedule(mock_run, client):
     assert response.status_code == 200
     job_id = response.json()["job_id"]
 
-    payload = client.get(f"/api/jobs/{job_id}").json()
+    payload = client.get(f"/api/studio/v1/jobs/{job_id}").json()
     assert payload["status"] == "success"
     assert payload["result"]["scene_schedule"]["phases"] == []
     assert payload["result"]["scene_schedule"]["log_lines"] == []
     assert payload["result"]["scene_schedule"]["scenes"][0]["scene_id"] == "scene_01_hook"
     assert payload["result"]["scene_schedule"]["scenes"][0].get("visual_prompt") is None
-    assert payload["result"]["scene_schedule_download_url"] == f"/api/jobs/{job_id}/scene-schedule"
+    assert payload["result"]["scene_schedule_download_url"] == f"/api/studio/v1/jobs/{job_id}/scene-schedule"
 
     download_response = client.get(payload["result"]["scene_schedule_download_url"])
     assert download_response.status_code == 200
@@ -268,5 +275,34 @@ def test_intro_project_screenplay_preview_and_edit(client):
     assert edit_payload["screenplay"]["title"] == updated_title
     assert edit_payload["changed_scene_ids"] == [first_scene["id"]]
     assert edit_payload["screenplay"]["scenes"][0]["narration"] == updated_narration
+
+
+def test_http_architecture_manifest(client):
+    r = client.get("/api/meta/architecture")
+    assert r.status_code == 200
+    data = r.json()
+    assert data.get("schema_version") == 1
+    assert "canonical_prefixes" in data
+    assert data["canonical_prefixes"].get("studio_control_plane") == "/api/studio/v1"
+    assert "domain_mounts" in data and len(data["domain_mounts"]) >= 1
+
+
+def test_legacy_paths_redirect_to_studio(client):
+    """旧版 /api/agent、/api/jobs 307 到 /api/studio/v1（不跟随重定向，只验 Location）。"""
+    r = client.get("/api/jobs", follow_redirects=False)
+    assert r.status_code == 307
+    assert r.headers.get("location") == "/api/studio/v1/jobs"
+
+    r2 = client.get("/api/jobs?limit=5&offset=0", follow_redirects=False)
+    assert r2.status_code == 307
+    assert r2.headers.get("location") == "/api/studio/v1/jobs?limit=5&offset=0"
+
+    r3 = client.post("/api/jobs", follow_redirects=False)
+    assert r3.status_code == 307
+    assert r3.headers.get("location") == "/api/studio/v1/jobs"
+
+    r4 = client.post("/api/agent/compile", follow_redirects=False)
+    assert r4.status_code == 307
+    assert r4.headers.get("location") == "/api/studio/v1/agent/compile"
 
 

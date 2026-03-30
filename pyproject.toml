@@ -1,0 +1,165 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "video-generation-system"
+version = "2.0.0"
+description = "Video automation workspace with root-level subproject scheduler"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Video Team", email = "support@example.com" }]
+keywords = ["video", "automation", "visualization", "animation", "api"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+  "numpy>=1.21.0",
+  "pandas>=1.3.0",
+  "matplotlib>=3.4.0",
+  "Pillow>=9.0.0",
+  "opencv-python>=4.5.0",
+  "fastapi>=0.100.0",
+  "uvicorn>=0.23.0",
+  "pydantic>=2.0.0",
+  "pydantic-settings>=2.0.0",
+  "ffmpeg-python>=0.2.0",
+  "moviepy>=1.0.3",
+  "python-dotenv>=0.19.0",
+  "python-multipart>=0.0.5",
+  "requests>=2.28.0",
+  "python-dateutil>=2.8.2",
+  "python-json-logger>=2.0.0",
+  "sqlalchemy>=2.0.0",
+]
+
+[project.optional-dependencies]
+api = [
+  "openai>=1.0.0",
+  "pexels-api>=1.0.0",
+  "aiohttp>=3.8.0",
+]
+async = [
+  "asyncio>=3.4.3",
+  "celery>=5.3.0",
+  "redis>=5.0.0",
+]
+dev = [
+  "pytest>=7.0.0",
+  "pytest-cov>=4.0.0",
+  "pytest-asyncio>=0.21.0",
+  "black>=23.0.0",
+  "flake8>=6.0.0",
+  "mypy>=1.0.0",
+  "pylint>=2.17.0",
+  "isort>=5.12.0",
+]
+# 浏览器模拟点击 + 可选真实 Agent 编译（UAT）；安装： pip install -e ".[uat]"
+uat = [
+  "playwright>=1.40.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/example/video-generation"
+Documentation = "https://github.com/example/video-generation/wiki"
+Repository = "https://github.com/example/video-generation"
+Issues = "https://github.com/example/video-generation/issues"
+
+[project.scripts]
+video-scheduler = "scheduler:main"
+video-dashboard = "dashboard:run_dashboard"
+video-agent = "orchestrator.agent_cli:main"
+
+[tool.setuptools]
+py-modules = ["scheduler", "dashboard"]
+
+[tool.setuptools.packages.find]
+where = [".", "projects"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+include = '\\.pyi?$'
+extend-exclude = '''
+/(
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip_gitignore = true
+multi_line_mode = 3
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = ["matplotlib.*", "cv2.*", "ffmpeg.*", "openai.*"]
+ignore_missing_imports = true
+
+[tool.pylint.messages_control]
+max-line-length = 100
+disable = [
+  "C0103",
+  "C0302",
+  "R0913",
+  "R0914",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "projects"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--strict-markers --tb=short -v"
+markers = [
+  "unit: Unit tests",
+  "integration: Integration tests",
+  "slow: Slow tests",
+  "api: API tests",
+  "video_e2e: Real FFmpeg video render (set VIDEO_PIPELINE_E2E=1)",
+  "browser: Playwright browser UI (needs playwright and chromium)",
+  "agent_uat: 真实 LLM 调用 /api/agent/compile（需 UAT_AGENT_COMPILE=1 与 .env 密钥）",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/site-packages/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "class .*\\(Protocol\\):",
+  "@(abc\\.)?abstractmethod",
+]

@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PythonProject1 v2.3 - 数据可视化视频生成平台</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+        }
+        
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            color: white;
+            padding: 30px 0;
+            text-align: center;
+        }
+        
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            margin-bottom: 30px;
+        }
+        
+        /* 输入框验证样式增强 */
+        .form-control.is-invalid {
+            border-color: #dc3545;
+            animation: shake 0.3s;
+        }
+        
+        .form-control.is-valid {
+            border-color: #198754;
+        }
+        
+        .invalid-feedback {
+            display: block;
+            font-size: 0.875em;
+            color: #dc3545;
+            margin-top: 0.25rem;
+        }
+        
+        .form-label .text-danger {
+            margin-left: 0.25rem;
+        }
+        
+        /* 数据输入方式标签间距优化 */
+        .btn-group + .form-text,
+        .btn-group + div {
+            margin-top: 1rem;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        .template-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 15px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            height: 100%;
+        }
+        
+        .template-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+        
+        .template-card.selected {
+            border-color: var(--primary-color);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+        
+        .template-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        
+        .step {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            position: relative;
+        }
+        
+        .step::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 0;
+            width: 50%;
+            height: 2px;
+            background: #e5e7eb;
+        }
+        
+        .step:last-child::after {
+            display: none;
+        }
+        
+        .step.completed::after {
+            background: var(--success-color);
+        }
+        
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-weight: bold;
+        }
+        
+        .step.active .step-number {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .step.completed .step-number {
+            background: var(--success-color);
+            color: white;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            transition: width 0.3s;
+        }
+        
+        .video-preview {
+            background: #000;
+            border-radius: 10px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            margin: 20px 0;
+        }
+        
+        .brand-badge {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .brand-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        .brand-badge.selected {
+            ring: 3px solid var(--primary-color);
+            ring-offset: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <header class="header position-relative">
+            <!-- Settings Button (Top Right) -->
+            <div class="position-absolute top-0 end-0">
+                <button class="btn btn-outline-light btn-lg" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#settingsModal"
+                        title="全局设置"
+                        style="z-index: 1000;">
+                    <i class="bi bi-gear-fill"></i>
+                </button>
+            </div>
+            
+            <h1 class="display-4 fw-bold mb-2">
+                <i class="bi bi-camera-video-fill me-3"></i>
+                PythonProject1 v2.3
+            </h1>
+            <p class="lead mb-0">数据可视化视频生成平台 - 让新手也能快速创建专业视频</p>
+        </header>
+
+        <!-- Main Card -->
+        <div class="main-card">
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step" :class="{active: currentStep === 1, completed: currentStep > 1}">
+                    <div class="step-number">1</div>
+                    <div class="fw-bold">选择模板</div>
+                </div>
+                <div class="step" :class="{active: currentStep === 2, completed: currentStep > 2}">
+                    <div class="step-number">2</div>
+                    <div class="fw-bold">填写数据</div>
+                </div>
+                <div class="step" :class="{active: currentStep === 3, completed: currentStep > 3}">
+                    <div class="step-number">3</div>
+                    <div class="fw-bold">选择品牌</div>
+                </div>
+                <div class="step" :class="{active: currentStep === 4, completed: currentStep > 4}">
+                    <div class="step-number">4</div>
+                    <div class="fw-bold">生成视频</div>
+                </div>
+            </div>
+
+            <!-- Step 1: 选择模板 -->
+            <div v-if="currentStep === 1">
+                <h3 class="mb-4"><i class="bi bi-layers-fill me-2 text-primary"></i>选择图表模板</h3>
+                <div class="row g-4">
+                    <div class="col-md-4" v-for="template in templates" :key="template.id">
+                        <div class="template-card" :class="{selected: selectedTemplate === template.id}" @click="selectTemplate(template.id)">
+                            <div class="template-icon text-center">
+                                <i :class="template.icon"></i>
+                            </div>
+                            <h5 class="text-center mb-2">{{ template.name }}</h5>
+                            <p class="text-muted small text-center mb-0">{{ template.description }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end mt-4">
+                    <button class="btn btn-primary btn-lg" @click="nextStep" :disabled="!selectedTemplate">
+                        下一步 <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: 填写数据 -->
+            <div v-if="currentStep === 2">
+                <h3 class="mb-4"><i class="bi bi-table me-2 text-primary"></i>填写数据</h3>
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold d-block mb-2">数据输入方式</label>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn" :class="dataInputMode === 'manual' ? 'btn-primary' : 'btn-outline-primary'" @click="dataInputMode = 'manual'">
+                            <i class="bi bi-keyboard me-2"></i>手动输入
+                        </button>
+                        <button type="button" class="btn" :class="dataInputMode === 'upload' ? 'btn-primary' : 'btn-outline-primary'" @click="dataInputMode = 'upload'">
+                            <i class="bi bi-upload me-2"></i>上传文件
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="dataInputMode === 'manual'">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">日期/类别 <span class="text-danger">*</span></label>
+                        <input type="text" 
+                               class="form-control" 
+                               v-model="manualData.labels" 
+                               @input="validateInput('labels')"
+                               placeholder="例如：2024-01, 2024-02, 2024-03"
+                               :class="{'is-invalid': validationErrors.labels}">
+                        <div class="form-text">
+                            <i class="bi bi-info-circle me-1"></i>
+                            用<strong>英文逗号</strong>或<strong>中文逗号</strong>分隔多个值
+                        </div>
+                        <div class="invalid-feedback" v-if="validationErrors.labels">
+                            {{ validationErrors.labels }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">数值 <span class="text-danger">*</span></label>
+                        <input type="text" 
+                               class="form-control" 
+                               v-model="manualData.values" 
+                               @input="validateInput('values')"
+                               placeholder="例如：100, 150, 200"
+                               :class="{'is-invalid': validationErrors.values}">
+                        <div class="form-text">
+                            <i class="bi bi-info-circle me-1"></i>
+                            用逗号分隔，与日期/类别一一对应
+                        </div>
+                        <div class="invalid-feedback" v-if="validationErrors.values">
+                            {{ validationErrors.values }}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">系列名称</label>
+                        <input type="text" 
+                               class="form-control" 
+                               v-model="manualData.seriesName" 
+                               placeholder="例如：销售额">
+                    </div>
+                </div>
+
+                <div v-if="dataInputMode === 'upload'">
+                    <div class="alert alert-info mb-3">
+                        <h6 class="alert-heading"><i class="bi bi-info-circle me-2"></i>文件格式说明</h6>
+                        <ul class="mb-0 small">
+                            <li><strong>支持格式：</strong>TSV（推荐）、CSV、Excel (.xlsx, .xls)</li>
+                            <li><strong>文件要求：</strong>至少包含 2 列（日期/类别 + 数值）</li>
+                            <li><strong>第 1 列：</strong>日期/类别标签（如：2024-01, 2024-02）</li>
+                            <li><strong>第 2 列：</strong>对应数值（如：100, 150）</li>
+                            <li><strong>第 3 列（可选）：</strong>系列名称（如：销售额）</li>
+                            <li class="mt-2"><strong>分隔符：</strong>
+                                <ul class="mb-0 mt-1">
+                                    <li>TSV 文件：使用<strong>制表符</strong>（Tab）分隔</li>
+                                    <li>CSV 文件：使用<strong>英文逗号</strong> <code>,</code> 分隔</li>
+                                    <li>Excel 文件：直接按列填写</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="text-center p-4 border border-dashed rounded" style="background: #f8f9fa;">
+                        <i class="bi bi-cloud-upload display-4 text-muted mb-3"></i>
+                        <h5 class="mb-2">上传数据文件</h5>
+                        <p class="text-muted mb-3">拖拽文件到此处，或点击选择文件</p>
+                        
+                        <input type="file" 
+                               id="fileUpload" 
+                               accept=".tsv,.csv,.xlsx,.xls" 
+                               style="display: none;"
+                               @change="handleFileUpload">
+                        <button class="btn btn-outline-primary me-2" @click="triggerFileUpload">
+                            <i class="bi bi-folder2-open me-2"></i>选择文件
+                        </button>
+                        <button class="btn btn-outline-secondary" @click="downloadTemplate">
+                            <i class="bi bi-download me-2"></i>下载模板
+                        </button>
+                        
+                        <div v-if="uploadedFile" class="mt-3">
+                            <div class="alert alert-success d-inline-flex align-items-center">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <span>{{ uploadedFile.name }} ({{ uploadedFile.size }} bytes)</span>
+                                <button class="btn btn-sm btn-outline-danger ms-3" @click="removeFile" title="删除文件">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div v-if="uploadError" class="mt-3">
+                            <div class="alert alert-danger d-inline-flex align-items-center">
+                                <i class="bi bi-x-circle-fill me-2"></i>
+                                <span>{{ uploadError }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">
+                        <i class="bi bi-lightbulb me-1"></i>
+                        <strong>提示：</strong>建议先下载模板，填写数据后再上传。<strong>TSV 格式兼容性最好</strong>。
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <button class="btn btn-outline-secondary" @click="prevStep">
+                        <i class="bi bi-arrow-left me-2"></i>上一步
+                    </button>
+                    <button class="btn btn-primary btn-lg" @click="nextStep" :disabled="!isDataValid">
+                        下一步 <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: 选择品牌 -->
+            <div v-if="currentStep === 3">
+                <h3 class="mb-4"><i class="bi bi-palette me-2 text-primary"></i>选择品牌主题</h3>
+                <div class="row g-4">
+                    <div class="col-md-4" v-for="brand in brands" :key="brand.id">
+                        <div class="card brand-badge" :class="{selected: selectedBrand === brand.id}" @click="selectBrand(brand.id)">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="rounded-circle me-3" :style="{width: '40px', height: '40px', background: brand.primaryColor}"></div>
+                                    <div>
+                                        <h5 class="mb-0">{{ brand.name }}</h5>
+                                        <small class="text-muted">{{ brand.description }}</small>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <span class="badge" :style="{background: brand.primaryColor}">主色</span>
+                                    <span class="badge" :style="{background: brand.secondaryColor}">辅色</span>
+                                    <span class="badge" :style="{background: brand.accentColor}">强调色</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between mt-4">
+                    <button class="btn btn-outline-secondary" @click="prevStep">
+                        <i class="bi bi-arrow-left me-2"></i>上一步
+                    </button>
+                    <button class="btn btn-primary btn-lg" @click="nextStep" :disabled="!selectedBrand">
+                        下一步 <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 4: 生成视频 -->
+            <div v-if="currentStep === 4">
+                <h3 class="mb-4"><i class="bi bi-camera-video me-2 text-primary"></i>生成视频</h3>
+                
+                <!-- 确认信息 -->
+                <div v-if="!isGenerating" class="mb-4">
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading"><i class="bi bi-info-circle me-2"></i>确认配置</h5>
+                        <ul class="mb-0">
+                            <li><strong>模板：</strong>{{ getTemplateName(selectedTemplate) }}</li>
+                            <li><strong>品牌：</strong>{{ getBrandName(selectedBrand) }}</li>
+                            <li><strong>数据：</strong>{{ getDataSummary() }}</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 生成进度 -->
+                <div v-if="isGenerating">
+                    <div class="text-center mb-4">
+                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                        <h4>{{ generatingMessage }}</h4>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" :style="{width: generateProgress + '%'}"></div>
+                    </div>
+                    <div class="text-center text-muted">{{ generateProgress }}%</div>
+                </div>
+
+                <!-- 生成完成 -->
+                <div v-if="videoGenerated">
+                    <div class="video-preview">
+                        <div class="text-center">
+                            <i class="bi bi-play-circle display-1 mb-3"></i>
+                            <p>视频预览</p>
+                        </div>
+                    </div>
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <strong>视频生成成功！</strong>
+                        <div class="mt-2">
+                            <button class="btn btn-success me-2">
+                                <i class="bi bi-download me-2"></i>下载视频
+                            </button>
+                            <button class="btn btn-outline-primary">
+                                <i class="bi bi-share me-2"></i>分享
+                            </button>
+                            <button class="btn btn-outline-secondary ms-2" @click="reset">
+                                <i class="bi bi-plus-circle me-2"></i>创建新视频
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div v-if="!videoGenerated" class="d-flex justify-content-between mt-4">
+                    <button class="btn btn-outline-secondary" @click="prevStep" v-if="!isGenerating">
+                        <i class="bi bi-arrow-left me-2"></i>上一步
+                    </button>
+                    <div>
+                        <button v-if="!isGenerating" class="btn btn-primary btn-lg" @click="startGeneration">
+                            <i class="bi bi-play-fill me-2"></i>开始生成
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Videos -->
+        <div class="main-card" v-if="recentVideos.length > 0">
+            <h3 class="mb-4"><i class="bi bi-clock-history me-2 text-primary"></i>最近生成的视频</h3>
+            <div class="row g-4">
+                <div class="col-md-4" v-for="video in recentVideos" :key="video.id">
+                    <div class="card">
+                        <div class="video-preview" style="min-height: 200px;">
+                            <i class="bi bi-film display-4"></i>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title">{{ video.name }}</h6>
+                            <p class="card-text small text-muted">{{ video.date }}</p>
+                            <button class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-download me-1"></i>下载
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Features -->
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-chat-dots display-4 text-primary mb-3"></i>
+                        <h5>AI 意图编译</h5>
+                        <p class="text-muted">用自然语言描述需求，AI 自动生成视频</p>
+                        <button class="btn btn-outline-primary" @click="goToAICompile">
+                            <i class="bi bi-box-arrow-in-up-right me-2"></i>尝试
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-folder2-open display-4 text-primary mb-3"></i>
+                        <h5>项目管理</h5>
+                        <p class="text-muted">管理所有项目和任务执行历史</p>
+                        <button class="btn btn-outline-primary" @click="goToProjects">
+                            <i class="bi bi-box-arrow-in-up-right me-2"></i>查看
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-code-slash display-4 text-primary mb-3"></i>
+                        <h5>代码工坊</h5>
+                        <p class="text-muted">开发者工具，自定义渲染逻辑</p>
+                        <button class="btn btn-outline-primary" @click="goToCodeStudio">
+                            <i class="bi bi-box-arrow-in-up-right me-2"></i>进入
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    currentStep: 1,
+                    selectedTemplate: null,
+                    selectedBrand: null,
+                    dataInputMode: 'manual',
+                    manualData: {
+                        labels: '',
+                        values: '',
+                        seriesName: ''
+                    },
+                    uploadedFile: null,
+                    uploadError: '',
+                    validationErrors: {
+                        labels: '',
+                        values: ''
+                    },
+                    isGenerating: false,
+                    generateProgress: 0,
+                    generatingMessage: '准备生成...',
+                    videoGenerated: false,
+                    templates: [
+                        { id: 'bar_chart_race', name: '柱状图竞赛', description: '排名变化展示', icon: 'bi-bar-chart-fill' },
+                        { id: 'line_chart_animated', name: '动态折线图', description: '趋势展示', icon: 'bi-graph-up' },
+                        { id: 'scatter_plot_dynamic', name: '动态散点图', description: '相关性分析', icon: 'bi-diagram-3-fill' },
+                        { id: 'area_chart_stacked', name: '堆叠面积图', description: '占比变化', icon: 'bi-layers-fill' },
+                        { id: 'bubble_chart', name: '气泡图', description: '三维数据对比', icon: 'bi-circle-fill' },
+                        { id: 'bar_chart_horizontal', name: '水平柱状图', description: '对比分析', icon: 'bi-bar-chart-line' }
+                    ],
+                    brands: [
+                        { id: 'default', name: '默认', description: '简洁专业', primaryColor: '#1f77b4', secondaryColor: '#ff7f0e', accentColor: '#2ca02c' },
+                        { id: 'corporate', name: '企业', description: '稳重商务', primaryColor: '#003366', secondaryColor: '#0066cc', accentColor: '#0099ff' },
+                        { id: 'minimalist', name: '极简', description: '少即是多', primaryColor: '#000000', secondaryColor: '#333333', accentColor: '#666666' },
+                        { id: 'vibrant', name: '鲜艳', description: '活力四射', primaryColor: '#FF6B6B', secondaryColor: '#4ECDC4', accentColor: '#45B7D1' },
+                        { id: 'new_york_times', name: '纽约时报', description: '经典新闻风格', primaryColor: '#326891', secondaryColor: '#EAECEF', accentColor: '#5F6D7B' },
+                        { id: 'financial_times', name: '金融时报', description: '金融专业', primaryColor: '#F27935', secondaryColor: '#00A651', accentColor: '#662D91' }
+                    ],
+                    recentVideos: [
+                        { id: 1, name: '2024 销售对比', date: '2024-03-24 10:30' },
+                        { id: 2, name: '产品趋势分析', date: '2024-03-23 15:20' }
+                    ]
+                }
+            },
+            computed: {
+                isDataValid() {
+                    if (this.dataInputMode === 'upload') {
+                        return this.uploadedFile !== null && this.uploadedFile !== undefined
+                    }
+                    // 检查是否有错误
+                    if (this.validationErrors.labels || this.validationErrors.values) {
+                        return false
+                    }
+                    return this.manualData.labels && this.manualData.values && 
+                           this.manualData.labels.trim() !== '' && 
+                           this.manualData.values.trim() !== ''
+                }
+            },
+            methods: {
+                // 触发文件上传
+                triggerFileUpload() {
+                    document.getElementById('fileUpload').click()
+                },
+                
+                // 处理文件上传
+                handleFileUpload(event) {
+                    const file = event.target.files[0]
+                    if (!file) {
+                        this.uploadError = '未选择文件'
+                        this.uploadedFile = null
+                        return
+                    }
+                    
+                    const fileExt = file.name.split('.').pop().toLowerCase()
+                    if (!['tsv', 'csv', 'xlsx', 'xls'].includes(fileExt)) {
+                        this.uploadError = '不支持的文件格式，请上传 TSV、CSV 或 Excel 文件'
+                        this.uploadedFile = null
+                        return
+                    }
+                    
+                    if (file.size > 10 * 1024 * 1024) {
+                        this.uploadError = '文件过大，请上传小于 10MB 的文件'
+                        this.uploadedFile = null
+                        return
+                    }
+                    
+                    this.uploadError = ''
+                    this.uploadedFile = {
+                        name: file.name,
+                        size: file.size
+                    }
+                },
+                
+                // 删除已上传的文件
+                removeFile() {
+                    this.uploadedFile = null
+                    this.uploadError = ''
+                    // 清空文件输入框，允许重新选择同一文件
+                    const fileInput = document.getElementById('fileUpload')
+                    if (fileInput) {
+                        fileInput.value = ''
+                    }
+                },
+                
+                // 下载模板
+                downloadTemplate() {
+                    // 使用制表符分隔，兼容所有 Excel 版本
+                    const tsvContent = '日期\t数值\t系列名称\n2024-01\t100\t销售额\n2024-02\t150\t销售额\n2024-03\t200\t销售额\n2024-04\t180\t销售额'
+                    const blob = new Blob(['\ufeff' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' })
+                    const link = document.createElement('a')
+                    link.href = URL.createObjectURL(blob)
+                    link.download = '数据模板.tsv'
+                    link.click()
+                },
+                
+                // 输入校验：防止多个标点符号、连续逗号等
+                validateInput(field) {
+                    const value = this.manualData[field]
+                    const errors = {
+                        labels: '',
+                        values: ''
+                    }
+                    
+                    if (!value || value.trim() === '') {
+                        errors[field] = '此项不能为空'
+                        this.validationErrors = errors
+                        return false
+                    }
+                    
+                    // 检查是否有连续的逗号（中英文都检查）
+                    if (value.includes(',,') || value.includes('，，') || value.includes(',，') || value.includes('，,')) {
+                        errors[field] = '检测到连续的逗号，请检查输入格式'
+                        this.validationErrors = errors
+                        return false
+                    }
+                    
+                    // 检查是否没有分隔符（纯数字或字母连续）
+                    const hasSeparator = value.includes(',') || value.includes(',') || value.includes(' ') || value.includes('\t')
+                    if (field === 'labels' && !hasSeparator && value.length > 6) {
+                        // 可能是日期格式但没有分隔符，如 202401202402
+                        const datePattern = /^\d{6,}$/
+                        if (datePattern.test(value.replace(/\s/g, ''))) {
+                            errors[field] = '未检测到分隔符！日期格式应为：2024-01, 2024-02（用逗号分隔）'
+                            this.validationErrors = errors
+                            return false
+                        }
+                    }
+                    
+                    // 检查日期格式（应该有连接符如 2024-01，而不是 202401）
+                    if (field === 'labels') {
+                        const items = value.split(/[,，\s]+/).filter(i => i.trim())
+                        const bareYearMonth = items.some(item => /^\d{6}$/.test(item.trim()))
+                        if (bareYearMonth) {
+                            errors[field] = '日期格式错误！应使用 2024-01 格式，而不是 202401'
+                            this.validationErrors = errors
+                            return false
+                        }
+                    }
+                    
+                    // 检查是否有多个标点符号连续
+                    const punctuationPattern = /[,,,.!?!.?;,,\s]+/g
+                    const matches = value.match(punctuationPattern)
+                    if (matches && matches.some(m => m.length > 1 && !m.includes(' '))) {
+                        errors[field] = '检测到多个连续的标点符号，请使用单个逗号分隔'
+                        this.validationErrors = errors
+                        return false
+                    }
+                    
+                    // 对于数值字段，检查是否都是有效数字
+                    if (field === 'values') {
+                        // 先统一中文逗号为英文逗号
+                        const normalized = value.replace(',', ',')
+                        const values = normalized.split(',').map(v => v.trim()).filter(v => v)
+                        
+                        for (const v of values) {
+                            if (isNaN(parseFloat(v))) {
+                                errors[field] = ` "${v}" 不是有效的数字`
+                                this.validationErrors = errors
+                                return false
+                            }
+                        }
+                    }
+                    
+                    // 检查通过
+                    this.validationErrors = { labels: '', values: '' }
+                    return true
+                },
+                
+                selectTemplate(id) {
+                    this.selectedTemplate = id
+                },
+                selectBrand(id) {
+                    this.selectedBrand = id
+                },
+                nextStep() {
+                    // 在第二步时校验数据
+                    if (this.currentStep === 2 && this.dataInputMode === 'manual') {
+                        const labelsValid = this.validateInput('labels')
+                        const valuesValid = this.validateInput('values')
+                        
+                        if (!labelsValid || !valuesValid) {
+                            alert('⚠️ 数据格式有误，请检查红色框中的错误提示！')
+                            return // 校验失败，不进入下一步
+                        }
+                    }
+                    
+                    if (this.currentStep < 4) {
+                        this.currentStep++
+                    }
+                },
+                prevStep() {
+                    if (this.currentStep > 1) {
+                        this.currentStep--
+                    }
+                },
+                getTemplateName(id) {
+                    const t = this.templates.find(t => t.id === id)
+                    return t ? t.name : id
+                },
+                getBrandName(id) {
+                    const b = this.brands.find(b => b.id === id)
+                    return b ? b.name : id
+                },
+                getDataSummary() {
+                    if (this.dataInputMode === 'manual') {
+                        const labels = this.manualData.labels.split(',').length
+                        return `${labels} 个数据点`
+                    }
+                    return '已上传文件'
+                },
+                async startGeneration() {
+                    this.isGenerating = true
+                    this.videoGenerated = false
+                    this.generateProgress = 0
+                    this.generatingMessage = '准备提交...'
+                    
+                    try {
+                        // 构建请求数据
+                        const requestData = {
+                            template: {
+                                template_id: this.selectedTemplate,
+                                template_name: this.getTemplateName(this.selectedTemplate)
+                            },
+                            data: {
+                                input_mode: this.dataInputMode,
+                                labels: this.manualData.labels,
+                                values: this.manualData.values,
+                                series_name: this.manualData.seriesName
+                            },
+                            brand: {
+                                brand_id: this.selectedBrand
+                            },
+                            platform: 'bilibili'
+                        }
+                        
+                        // 调用 API 创建视频
+                        this.generatingMessage = '提交请求...'
+                        const createRes = await fetch('/api/video/v2/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestData)
+                        })
+                        
+                        if (!createRes.ok) {
+                            throw new Error('创建失败')
+                        }
+                        
+                        const createData = await createRes.json()
+                        const jobId = createData.job_id
+                        
+                        // 轮询查询状态
+                        this.generatingMessage = '等待响应...'
+                        const pollInterval = setInterval(async () => {
+                            const statusRes = await fetch(`/api/video/v2/status/${jobId}`)
+                            const statusData = await statusRes.json()
+                            
+                            this.generateProgress = statusData.progress
+                            this.generatingMessage = statusData.message
+                            
+                            if (statusData.status === 'completed') {
+                                clearInterval(pollInterval)
+                                this.isGenerating = false
+                                this.videoGenerated = true
+                                // 添加到最近视频
+                                this.recentVideos.unshift({
+                                    id: jobId,
+                                    name: this.getTemplateName(this.selectedTemplate),
+                                    date: new Date().toLocaleString('zh-CN')
+                                })
+                            } else if (statusData.status === 'failed') {
+                                clearInterval(pollInterval)
+                                this.isGenerating = false
+                                alert('生成失败：' + statusData.error)
+                            }
+                        }, 1000)
+                        
+                    } catch (e) {
+                        console.error(e)
+                        this.isGenerating = false
+                        alert('生成失败：' + e.message)
+                    }
+                },
+                reset() {
+                    this.currentStep = 1
+                    this.selectedTemplate = null
+                    this.selectedBrand = null
+                    this.manualData = { labels: '', values: '', seriesName: '' }
+                    this.videoGenerated = false
+                    this.isGenerating = false
+                    this.generateProgress = 0
+                },
+                goToAICompile() {
+                    window.location.href = '/ai_compile.html'
+                },
+                goToProjects() {
+                    window.location.href = '/projects.html'
+                },
+                goToCodeStudio() {
+                    window.location.href = '/code_studio.html'
+                }
+            }
+        }).mount('#app')
+    </script>
+
+    <!-- Global Settings Modal -->
+    <script src="settings-modal.html"></script>
+    <script>
+        // Settings Modal Integration
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load settings from localStorage
+            const settings = {
+                openai_base_url: localStorage.getItem('openai_base_url') || 'https://api.openai.com/v1',
+                openai_api_key: localStorage.getItem('openai_api_key') || '',
+                openai_model: localStorage.getItem('openai_model') || 'gpt-3.5-turbo',
+                quality_preset: localStorage.getItem('quality_preset') || 'draft',
+                video_width: parseInt(localStorage.getItem('video_width')) || 1920,
+                video_height: parseInt(localStorage.getItem('video_height')) || 1080,
+                video_fps: parseInt(localStorage.getItem('video_fps')) || 30
+            }
+            
+            // Initialize settings modal if component is available
+            if (typeof SettingsModalComponent !== 'undefined') {
+                const settingsApp = Vue.createApp(SettingsModalComponent)
+                settingsApp.mount('#settingsModalComponent')
+            }
+            
+            // Listen for settings updates
+            window.addEventListener('settings-updated', (event) => {
+                console.log('Settings updated:', event.detail)
+                // Update app settings if needed
+            })
+        })
+    </script>
+
+    <!-- Settings Modal Component -->
+<!-- 
+全局设置模态框组件 - 纯 JavaScript 实现
+用法：在页面中引入此文件
+-->
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-primary bg-gradient">
+        <h5 class="modal-title" id="settingsModalLabel">
+          <i class="bi bi-gear-fill me-2"></i>全局设置
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- AI 配置 -->
+        <div class="card mb-4">
+          <div class="card-header bg-light">
+            <h6 class="mb-0 fw-bold">
+              <i class="bi bi-cpu-fill text-primary me-2"></i>AI 配置
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info small">
+              <i class="bi bi-info-circle me-1"></i>
+              配置 OpenAI 兼容 API，用于 AI 代码生成和视频脚本编译功能。
+              支持 OpenAI、通义千问、Moonshot 等兼容 API。
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Base URL <span class="text-danger">*</span></label>
+              <input type="text" 
+                     class="form-control font-monospace" 
+                     id="settingsBaseUrl"
+                     placeholder="https://api.openai.com/v1"
+                     autocomplete="off">
+              <div class="form-text">
+                OpenAI 兼容协议地址。示例：
+                <ul class="mb-0 mt-1 small">
+                  <li>OpenAI 官方：<code>https://api.openai.com/v1</code></li>
+                  <li>通义千问：<code>https://dashscope.aliyuncs.com/compatible-mode/v1</code></li>
+                  <li>Moonshot：<code>https://api.moonshot.cn/v1</code></li>
+                </ul>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">API Key <span class="text-danger">*</span></label>
+              <input type="password" 
+                     class="form-control font-monospace" 
+                     id="settingsApiKey"
+                     placeholder="sk-..."
+                     autocomplete="off">
+              <div class="form-text">
+                请妥善保管您的 API Key，不会上传到服务器。
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">模型提供商</label>
+              <select class="form-select" id="settingsProvider" onchange="updateModelOptions()">
+                <option value="openai">OpenAI</option>
+                <option value="deepseek">DeepSeek (深度求索)</option>
+                <option value="dashscope">通义千问 (阿里云)</option>
+                <option value="moonshot">Moonshot (月之暗面)</option>
+                <option value="custom">自定义 / 其他</option>
+              </select>
+              <div class="form-text mb-2">
+                选择 API 提供商，自动匹配对应模型列表。
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">模型 <span class="text-danger">*</span></label>
+              <select class="form-select" id="settingsModel">
+                <optgroup label="OpenAI" id="optgroup-openai">
+                  <option value="gpt-3.5-turbo">GPT-3.5 Turbo (快速/经济)</option>
+                  <option value="gpt-4-turbo">GPT-4 Turbo (高质量)</option>
+                  <option value="gpt-4o">GPT-4o (最佳)</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini (性价比)</option>
+                </optgroup>
+                <optgroup label="DeepSeek" id="optgroup-deepseek" style="display:none;">
+                  <option value="deepseek-chat">DeepSeek Chat (对话)</option>
+                  <option value="deepseek-coder">DeepSeek Coder (代码)</option>
+                  <option value="deepseek-v2">DeepSeek V2 (最新版)</option>
+                </optgroup>
+                <optgroup label="通义千问" id="optgroup-dashscope" style="display:none;">
+                  <option value="qwen-turbo">通义千问 Turbo</option>
+                  <option value="qwen-plus">通义千问 Plus</option>
+                  <option value="qwen-max">通义千问 Max</option>
+                  <option value="qwen-coder-plus">通义千问 Coder Plus (代码)</option>
+                </optgroup>
+                <optgroup label="Moonshot" id="optgroup-moonshot" style="display:none;">
+                  <option value="moonshot-v1-8k">Moonshot V1 8K</option>
+                  <option value="moonshot-v1-32k">Moonshot V1 32K</option>
+                  <option value="moonshot-v1-128k">Moonshot V1 128K</option>
+                </optgroup>
+                <optgroup label="自定义" id="optgroup-custom" style="display:none;">
+                  <option value="custom">手动输入模型名称</option>
+                </optgroup>
+              </select>
+              
+              <!-- 自定义模型输入框 -->
+              <input type="text" 
+                     class="form-control mt-2 font-monospace" 
+                     id="settingsCustomModel"
+                     placeholder="例如：deepseek-coder"
+                     style="display:none;">
+              
+              <div class="form-text">
+                <span id="providerHint">首次使用建议选择 <code>gpt-3.5-turbo</code> 或 <code>qwen-turbo</code> 进行测试。</span>
+              </div>
+              
+              <!-- API Key 不匹配提示 -->
+              <div id="modelMismatchAlert" class="alert alert-warning mt-2 small" style="display:none;">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                <strong>提示：</strong>当前 API Key 可能不支持所选模型。
+                <ul class="mb-0 mt-1">
+                  <li>阿里云百炼平台用户：请选择 <strong>通义千问</strong> 提供商</li>
+                  <li>DeepSeek 用户：请选择 <strong>DeepSeek</strong> 提供商</li>
+                  <li>或使用 <strong>自定义</strong> 手动输入模型名称</li>
+                </ul>
+                <button class="btn btn-sm btn-outline-warning mt-1" onclick="switchProvider('dashscope')">
+                  <i class="bi bi-arrow-right-circle me-1"></i>切换到通义千问
+                </button>
+                <button class="btn btn-sm btn-outline-warning mt-1" onclick="switchProvider('deepseek')">
+                  <i class="bi bi-arrow-right-circle me-1"></i>切换到 DeepSeek
+                </button>
+              </div>
+            </div>
+            
+            <div class="d-flex gap-2 align-items-center">
+              <button type="button" 
+                      class="btn btn-outline-primary" 
+                      id="btnValidateAPI"
+                      onclick="validateAPI()">
+                <i class="bi bi-check-circle me-1"></i>验证连接
+              </button>
+              
+              <div id="apiStatus"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 渲染设置 -->
+        <div class="card mb-4">
+          <div class="card-header bg-light">
+            <h6 class="mb-0 fw-bold">
+              <i class="bi bi-film text-primary me-2"></i>渲染设置
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label fw-bold">质量预设</label>
+              <select class="form-select" id="settingsQuality" onchange="updateQualityParams()">
+                <option value="preview">🚀 Preview - 快速预览 (72 DPI)</option>
+                <option value="draft" selected>📝 Draft - 草稿质量 (108 DPI)</option>
+                <option value="final">✨ Final - 最终质量 (144 DPI)</option>
+              </select>
+            </div>
+            
+            <div class="alert alert-light border">
+              <div class="row g-3">
+                <div class="col-md-4 text-center">
+                  <div class="text-muted small">DPI</div>
+                  <div class="fs-4 fw-bold text-primary" id="qualityDpi">108</div>
+                </div>
+                <div class="col-md-4 text-center">
+                  <div class="text-muted small">比特率</div>
+                  <div class="fs-4 fw-bold text-primary" id="qualityBitrate">8000k</div>
+                </div>
+                <div class="col-md-4 text-center">
+                  <div class="text-muted small">CRF</div>
+                  <div class="fs-4 fw-bold text-primary" id="qualityCrf">21</div>
+                </div>
+              </div>
+              <hr class="my-3">
+              <div class="small text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                <strong>Preview</strong> 适合快速预览和测试，
+                <strong>Draft</strong> 适合日常使用，
+                <strong>Final</strong> 适合最终输出（渲染时间较长）。
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">视频分辨率</label>
+              <div class="row g-2">
+                <div class="col-6">
+                  <input type="number" class="form-control" id="settingsWidth" value="1920" placeholder="宽度">
+                  <div class="form-text text-center">宽度 (px)</div>
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control" id="settingsHeight" value="1080" placeholder="高度">
+                  <div class="form-text text-center">高度 (px)</div>
+                </div>
+              </div>
+              <div class="form-text">
+                常见分辨率：
+                <span class="badge bg-secondary">1920x1080</span>
+                <span class="badge bg-secondary">1080x1920 (竖屏)</span>
+                <span class="badge bg-secondary">3840x2160 (4K)</span>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">帧率 (FPS)</label>
+              <select class="form-select" id="settingsFps">
+                <option value="24">24 FPS - 电影感</option>
+                <option value="25">25 FPS - PAL 制式</option>
+                <option value="30" selected>30 FPS - 标准视频</option>
+                <option value="60">60 FPS - 高帧率</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 存储设置 -->
+        <div class="card">
+          <div class="card-header bg-light">
+            <h6 class="mb-0 fw-bold">
+              <i class="bi bi-hdd text-primary me-2"></i>存储设置
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label fw-bold">输出目录</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="settingsOutputDir" value="/outputs" readonly>
+                <button class="btn btn-outline-secondary" type="button" onclick="openOutputDir()">
+                  <i class="bi bi-folder2-open"></i> 打开
+                </button>
+              </div>
+              <div class="form-text">
+                生成的视频文件将保存在此目录。
+              </div>
+            </div>
+            
+            <div class="alert alert-warning small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              <strong>服务器部署提示：</strong>
+              当前使用 localStorage 存储配置。部署到服务器时，建议切换到数据库模式。
+            </div>
+          </div>
+        </div>
+        
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-outline-primary" onclick="resetSettings()">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>重置为默认值
+        </button>
+        <button type="button" class="btn btn-primary" onclick="saveSettings()">
+          <i class="bi bi-save me-1"></i>保存设置
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Settings Modal Functions
+
+// 质量预设参数
+const QUALITY_PRESETS = {
+  preview: { dpi: 72, bitrate: 4000, crf: 28 },
+  draft: { dpi: 108, bitrate: 8000, crf: 21 },
+  final: { dpi: 144, bitrate: 14000, crf: 17 }
+};
+
+// 提供商与 Base URL 映射
+const PROVIDER_BASE_URLS = {
+  openai: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com/v1',
+  dashscope: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  moonshot: 'https://api.moonshot.cn/v1'
+};
+
+// 更新模型选项
+function updateModelOptions() {
+  const provider = document.getElementById('settingsProvider').value;
+  const modelSelect = document.getElementById('settingsModel');
+  const customModelInput = document.getElementById('settingsCustomModel');
+  const providerHint = document.getElementById('providerHint');
+  
+  // 隐藏所有 optgroup
+  document.querySelectorAll('#settingsModel optgroup').forEach(og => {
+    og.style.display = 'none';
+  });
+  
+  // 显示选中的提供商对应的 optgroup
+  const selectedOptgroup = document.getElementById(`optgroup-${provider}`);
+  if (selectedOptgroup) {
+    selectedOptgroup.style.display = 'block';
+    // 选中该组的第一个选项
+    const firstOption = selectedOptgroup.querySelector('option');
+    if (firstOption) {
+      modelSelect.value = firstOption.value;
+    }
+  }
+  
+  // 自定义模式显示输入框
+  if (provider === 'custom') {
+    customModelInput.style.display = 'block';
+    modelSelect.value = 'custom';
+    providerHint.innerHTML = '手动输入模型名称，例如：<code>deepseek-coder</code> 或 <code>qwen-coder-plus</code>';
+  } else {
+    customModelInput.style.display = 'none';
+    // 更新提示文本
+    const hints = {
+      openai: '首次使用建议选择 <code>gpt-3.5-turbo</code> 或 <code>gpt-4o-mini</code> 进行测试。',
+      deepseek: 'DeepSeek 支持对话和代码生成，推荐使用 <code>deepseek-chat</code> 或 <code>deepseek-coder</code>。',
+      dashscope: '阿里云百炼平台用户请选择此项，推荐使用 <code>qwen-turbo</code> 或 <code>qwen-coder-plus</code>。',
+      moonshot: 'Moonshot 支持超长上下文，推荐使用 <code>moonshot-v1-8k</code> 进行测试。'
+    };
+    providerHint.innerHTML = hints[provider] || '';
+  }
+  
+  // 隐藏不匹配提示
+  document.getElementById('modelMismatchAlert').style.display = 'none';
+}
+
+// 切换提供商
+function switchProvider(provider) {
+  document.getElementById('settingsProvider').value = provider;
+  updateModelOptions();
+}
+
+// 加载设置
+function loadSettings() {
+  // 加载提供商设置
+  const provider = localStorage.getItem('llm_provider') || 'openai';
+  document.getElementById('settingsProvider').value = provider;
+  
+  // 根据提供商加载 Base URL
+  const savedBaseUrl = localStorage.getItem('openai_base_url');
+  if (savedBaseUrl) {
+    document.getElementById('settingsBaseUrl').value = savedBaseUrl;
+  } else if (PROVIDER_BASE_URLS[provider]) {
+    document.getElementById('settingsBaseUrl').value = PROVIDER_BASE_URLS[provider];
+  }
+  
+  document.getElementById('settingsApiKey').value = localStorage.getItem('openai_api_key') || '';
+  
+  // 加载模型设置
+  const savedModel = localStorage.getItem('openai_model') || 'gpt-3.5-turbo';
+  
+  // 先更新模型选项，再设置值
+  updateModelOptions();
+  document.getElementById('settingsModel').value = savedModel;
+  
+  // 如果是自定义模型，显示输入框
+  if (provider === 'custom') {
+    document.getElementById('settingsCustomModel').value = savedModel;
+    document.getElementById('settingsCustomModel').style.display = 'block';
+  }
+  
+  document.getElementById('settingsQuality').value = localStorage.getItem('quality_preset') || 'draft';
+  document.getElementById('settingsWidth').value = localStorage.getItem('video_width') || 1920;
+  document.getElementById('settingsHeight').value = localStorage.getItem('video_height') || 1080;
+  document.getElementById('settingsFps').value = localStorage.getItem('video_fps') || 30;
+  updateQualityParams();
+}
+
+// 更新质量参数显示
+function updateQualityParams() {
+  const preset = QUALITY_PRESETS[document.getElementById('settingsQuality').value] || QUALITY_PRESETS.draft;
+  document.getElementById('qualityDpi').textContent = preset.dpi;
+  document.getElementById('qualityBitrate').textContent = preset.bitrate + 'k';
+  document.getElementById('qualityCrf').textContent = preset.crf;
+}
+
+// 验证 API 连接
+async function validateAPI() {
+  const btn = document.getElementById('btnValidateAPI');
+  const statusDiv = document.getElementById('apiStatus');
+  const provider = document.getElementById('settingsProvider').value;
+  let baseUrl = document.getElementById('settingsBaseUrl').value;
+  const apiKey = document.getElementById('settingsApiKey').value;
+  const modelMismatchAlert = document.getElementById('modelMismatchAlert');
+  
+  if (!apiKey) {
+    alert('⚠️ 请先填写 API Key');
+    return;
+  }
+  
+  // 如果 Base URL 为空，使用提供商默认 URL
+  if (!baseUrl && PROVIDER_BASE_URLS[provider]) {
+    baseUrl = PROVIDER_BASE_URLS[provider];
+    document.getElementById('settingsBaseUrl').value = baseUrl;
+  }
+  
+  // 禁用按钮，显示加载状态
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>验证中...';
+  statusDiv.innerHTML = '';
+  modelMismatchAlert.style.display = 'none';
+  
+  try {
+    // 尝试获取模型列表
+    const modelsResponse = await fetch(`${baseUrl}/models`, {
+      headers: { 
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      method: 'GET'
+    });
+    
+    if (modelsResponse.ok) {
+      const modelsData = await modelsResponse.json();
+      const availableModels = modelsData.data || [];
+      
+      // 获取当前选中的模型
+      let currentModel = document.getElementById('settingsModel').value;
+      if (provider === 'custom') {
+        currentModel = document.getElementById('settingsCustomModel').value.trim();
+      }
+      
+      // 检查当前模型是否在可用列表中
+      const modelExists = availableModels.some(m => m.id === currentModel || m.id.includes(currentModel));
+      
+      if (modelExists) {
+        // 模型可用
+        statusDiv.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>API 连接成功</span>';
+        alert(`✅ API 连接成功！\n\n可用模型数量：${availableModels.length}\n当前模型 "${currentModel}" 可用。`);
+        localStorage.setItem('openai_base_url', baseUrl);
+        localStorage.setItem('openai_api_key', apiKey);
+      } else {
+        // 模型不匹配，显示提示
+        statusDiv.innerHTML = '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>API 连接成功，但模型不可用</span>';
+        modelMismatchAlert.style.display = 'block';
+        
+        // 构建可用模型列表提示
+        const modelIds = availableModels.slice(0, 5).map(m => m.id).join(', ');
+        const moreText = availableModels.length > 5 ? ` 等共${availableModels.length}个模型` : '';
+        
+        alert(`⚠️ API 连接成功，但当前模型 "${currentModel}" 不可用。\n\n可用模型：${modelIds}${moreText}\n\n请切换提供商或手动输入模型名称。`);
+      }
+    } else {
+      const errorData = await modelsResponse.json().catch(() => ({}));
+      throw new Error(`HTTP ${modelsResponse.status}: ${errorData.error?.message || modelsResponse.statusText}`);
+    }
+  } catch (error) {
+    statusDiv.innerHTML = `<span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>${error.message}</span>`;
+    
+    // 判断是否是认证错误
+    if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+      alert(`❌ API Key 无效\n\n${error.message}\n\n请检查：\n1. API Key 是否正确\n2. Base URL 是否正确\n3. API Key 是否有余额`);
+    } else if (error.message.includes('403')) {
+      alert(`❌ API Key 无权限\n\n${error.message}\n\n可能原因：\n1. API Key 不支持当前 API 端点\n2. 需要开通相关服务\n\n建议：\n- 阿里云用户请确保开通了百炼平台服务\n- DeepSeek 用户请确保开通了 API 服务`);
+    } else {
+      alert(`❌ API 验证失败：${error.message}`);
+    }
+  } finally {
+    // 恢复按钮状态
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>验证连接';
+  }
+}
+
+// 保存设置
+function saveSettings() {
+  const provider = document.getElementById('settingsProvider').value;
+  let baseUrl = document.getElementById('settingsBaseUrl').value;
+  const apiKey = document.getElementById('settingsApiKey').value;
+  let model = document.getElementById('settingsModel').value;
+  const quality = document.getElementById('settingsQuality').value;
+  const width = parseInt(document.getElementById('settingsWidth').value) || 1920;
+  const height = parseInt(document.getElementById('settingsHeight').value) || 1080;
+  const fps = parseInt(document.getElementById('settingsFps').value) || 30;
+  
+  // 如果是自定义模型，使用输入框的值
+  if (provider === 'custom') {
+    const customModel = document.getElementById('settingsCustomModel').value.trim();
+    if (customModel) {
+      model = customModel;
+    } else {
+      alert('⚠️ 请输入自定义模型名称');
+      return;
+    }
+  }
+  
+  // 如果 Base URL 为空，使用提供商默认 URL
+  if (!baseUrl && PROVIDER_BASE_URLS[provider]) {
+    baseUrl = PROVIDER_BASE_URLS[provider];
+    document.getElementById('settingsBaseUrl').value = baseUrl;
+  }
+  
+  // 保存到 localStorage
+  localStorage.setItem('llm_provider', provider);
+  localStorage.setItem('openai_base_url', baseUrl);
+  localStorage.setItem('openai_api_key', apiKey);
+  localStorage.setItem('openai_model', model);
+  localStorage.setItem('quality_preset', quality);
+  localStorage.setItem('video_width', width);
+  localStorage.setItem('video_height', height);
+  localStorage.setItem('video_fps', fps);
+  
+  // 显示成功提示
+  alert('✅ 设置已保存！\n\n提供商：' + provider + '\n模型：' + model);
+  
+  // 关闭模态框
+  const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+  if (modal) {
+    modal.hide();
+  }
+  
+  // 触发自定义事件，通知其他组件
+  window.dispatchEvent(new CustomEvent('settings-updated', {
+    detail: {
+      llm_provider: provider,
+      openai_base_url: baseUrl,
+      openai_api_key: apiKey,
+      openai_model: model,
+      quality_preset: quality,
+      video_width: width,
+      video_height: height,
+      video_fps: fps
+    }
+  }));
+}
+
+// 重置设置
+function resetSettings() {
+  if (confirm('确定要重置为默认设置吗？\n\n这将清除所有已保存的配置。')) {
+    localStorage.clear();
+    loadSettings();
+    alert('✅ 设置已重置为默认值！');
+  }
+}
+
+// 打开输出目录
+function openOutputDir() {
+  const outputDir = document.getElementById('settingsOutputDir').value;
+  alert(`输出目录：${outputDir}\n\n(实际打开目录功能需要后端支持)`);
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', loadSettings);
+
+// 如果 DOM 已加载完成，立即执行
+if (document.readyState !== 'loading') {
+  loadSettings();
+}
+</script>
+
+

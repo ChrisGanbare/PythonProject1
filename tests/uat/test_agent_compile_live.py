@@ -1,4 +1,4 @@
-"""真实 Agent（OpenAI 兼容接口）调用 /api/agent/compile 的 UAT。
+﻿"""真实 Agent（OpenAI 兼容接口）调用 /api/studio/v1/agent/compile 的 UAT。
 
 这不是默认 CI 测试：需要本机 .env 已配置密钥，并显式打开开关。
 
@@ -25,7 +25,7 @@ def test_compile_natural_language_returns_template():
     if os.environ.get("UAT_AGENT_COMPILE", "").strip() != "1":
         pytest.skip("设置环境变量 UAT_AGENT_COMPILE=1 以启用真实 Agent 编译 UAT")
 
-    from shared.config.settings import settings
+    from shared.ops.config.settings import settings
 
     if not (settings.api.openai_compatible_api_key and str(settings.api.openai_compatible_api_key).strip()):
         pytest.skip(".env 中未配置 openai_compatible_api_key，无法调用真实模型")
@@ -39,7 +39,7 @@ def test_compile_natural_language_returns_template():
     }
 
     with TestClient(app) as client:
-        res = client.post("/api/agent/compile", json=body)
+        res = client.post("/api/studio/v1/agent/compile", json=body)
         assert res.status_code == 200, res.text
         data = res.json()
         assert data.get("success") is True, data

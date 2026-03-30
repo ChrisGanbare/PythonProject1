@@ -43,3 +43,9 @@ runtime/
 
 # Manim media outputs
 media/
+
+# 根目录 projects/ 仅含测试脚手架临时产物，真实项目位于 app/projects/
+projects/
+
+# 旧 POC 临时工作区（已废弃，由 runtime/ 替代）
+workspace/

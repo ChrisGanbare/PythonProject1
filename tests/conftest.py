@@ -1,4 +1,4 @@
-"""Pytest shared fixtures."""
+﻿"""Pytest shared fixtures."""
 
 from __future__ import annotations
 
@@ -10,12 +10,13 @@ import tempfile
 import pytest
 
 _workspace_root = Path(__file__).resolve().parents[1]
-_projects_root = _workspace_root / "projects"
-for _p in [str(_projects_root), str(_workspace_root)]:
+_app_root = _workspace_root / "app"
+_projects_root = _app_root / "projects"
+for _p in [str(_projects_root), str(_app_root)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from shared.config.settings import Settings
+from shared.ops.config.settings import Settings
 from loan_comparison.models.loan import LoanData
 
 

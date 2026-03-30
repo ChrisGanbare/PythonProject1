@@ -1,41 +1,41 @@
 version: '3.8'
 
 services:
-  # 主应用服务
-  app:
+  # Web 控制台（主服务）
+  dashboard:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    ports:
+      - "8090:8090"
     volumes:
-      - ../workspace:/app/workspace
+      - ../runtime:/app/runtime     # 成片、日志、SQLite 落盘
+      - ../.env:/app/.env:ro        # 环境变量（复制 .env.example 为 .env 后使用）
     environment:
       - PYTHONUNBUFFERED=1
-      - FFMPEG_CONFIG=high
-      - MAX_WORKERS=4
-    working_dir: /app/poc
-    command: python main.py
-    
-  # 批量处理服务
-  batch-processor:
+      - DASHBOARD_HOST=0.0.0.0
+      - DASHBOARD_PORT=8090
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/api/studio/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # 纯 API 模式（可选，与 dashboard 同一应用，默认端口 8000）
+  api:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    volumes:
-      - ../workspace:/app/workspace
-    environment:
-      - MAX_WORKERS=8
-    working_dir: /app/poc
-    command: python -c "from src.video.ffmpeg_wrapper import BatchVideoProcessor; print('Batch processor ready')"
-    
-  # 开发服务 (带热重载)
-  dev:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    volumes:
-      - ../workspace:/app/workspace
-      - ../poc:/app/poc
     ports:
       - "8000:8000"
-    working_dir: /app/poc
-    command: python -m http.server 8000
+    volumes:
+      - ../runtime:/app/runtime
+      - ../.env:/app/.env:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["python", "main.py", "api", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    profiles:
+      - api-only

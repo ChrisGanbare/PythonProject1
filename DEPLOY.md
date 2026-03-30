@@ -1,5 +1,7 @@
 # PythonProject1 部署文档
 
+非技术负责人请先阅读：[docs/业务落地说明.md](docs/业务落地说明.md)。
+
 ## 快速部署
 
 ### 方法 1: 本地部署 (推荐开发使用)
@@ -11,6 +13,9 @@ cd PythonProject1
 
 # 2. 安装依赖
 pip install -r requirements.txt
+
+# （建议）复制环境变量模板
+cp .env.example .env   # Windows: copy .env.example .env
 
 # 3. 启动服务
 python main.py dashboard  # Web 控制台 (8090)
@@ -60,7 +65,10 @@ docker-compose down
 - [ ] 已安装 Python 3.9+
 - [ ] 已克隆项目
 - [ ] 已安装依赖 (`pip install -r requirements.txt`)
+- [ ] **FFmpeg** 已在 `PATH` 中（成片 / 快速图表视频必需）
 - [ ] 已配置防火墙 (端口 8000 和 8090)
+- [ ] （可选）Studio 数据库：默认 SQLite 在仓库内；多实例或 PostgreSQL 时设置环境变量 **`STUDIO__DATABASE_URL`**（或 `STUDIO_DATABASE_URL`），见 `shared/studio/config.py`
+- [ ] （可选）UI 自动化：`pip install -r requirements-e2e-ui.txt` 后执行 `python -m playwright install chromium`
 
 ### 启动服务
 
@@ -76,15 +84,18 @@ python main.py dashboard --host 0.0.0.0 --port 8090
 
 ### 远程访问
 
-- **API 文档**: `http://<服务器 IP>:8000/docs`
-- **Dashboard**: `http://<服务器 IP>:8090`
+- **OpenAPI**：与所启动端口一致（Dashboard `8090` 或 `python main.py api` 的端口）`/docs`
+- **Dashboard 页面**: `http://<服务器 IP>:8090`（与 API 同源时可一并访问 `/docs`）
 
 ### 验证步骤
 
-1. [ ] 访问 API 文档页面
-2. [ ] 访问 Dashboard 页面
-3. [ ] 测试创建视频作业
-4. [ ] 检查日志无错误
+0. [ ] 环境自检：`python main.py doctor`（关键项应全部 ✓）
+1. [ ] 访问 OpenAPI `/docs`
+2. [ ] 访问 Dashboard 首页
+3. [ ] 探活：`GET /api/studio/v1/health` 返回 `{"status":"ok",...}`
+4. [ ] 架构清单：`GET /api/meta/architecture` 返回 `canonical_prefixes` 与 `domain_mounts`
+5. [ ] 测试 `POST /api/video/v2/create` 或 `POST /api/studio/v1/jobs`
+6. [ ] 检查日志无错误（任务完成时含 `TASK FINISHED` 与 `elapsed_s`）
 
 ---
 

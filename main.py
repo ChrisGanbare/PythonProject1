@@ -11,36 +11,67 @@ PythonProject1 主入口启动程序
 
 使用示例:
     ```bash
+    # 仅输入 main.py：打印「下一步」操作提示
+    python main.py
+
     # 启动 API 服务
     python main.py api
-    
-    # 运行演示
+
+    # Web 控制台
+    python main.py dashboard
+
+    # 运行演示 / CLI / 帮助
     python main.py demo
-    
-    # CLI 工具
     python main.py cli list-templates
-    
-    # 查看帮助
     python main.py --help
     ```
 """
 
-import sys
 import argparse
+import os
+import sys
 from pathlib import Path
+
+# 将 app/ 及 app/projects/ 注入 sys.path，使得
+# "from shared.xxx import" / "from api.xxx import" 等在整个进程中生效
+_ROOT = Path(__file__).resolve().parent
+_APP = _ROOT / "app"
+for _p in (_APP, _APP / "projects"):
+    _s = str(_p)
+    if _s not in sys.path:
+        sys.path.insert(0, _s)
 
 
 def print_banner():
-    """打印欢迎横幅"""
-    print("="*70)
+    """打印欢迎横幅（执行子命令前）"""
+    print("=" * 70)
     print(" PythonProject1 - 数据可视化视频生成平台 v2.3.0")
-    print("="*70)
+    print("=" * 70)
     print()
-    print("快速开始:")
-    print("  python main.py api        - 启动 API 服务")
-    print("  python main.py dashboard  - 启动 Web 控制台")
-    print("  python main.py demo       - 运行演示")
-    print("  python main.py --help     - 查看帮助")
+
+
+def print_next_steps() -> None:
+    """仅执行 python main.py 时：提示下一步可执行的操作。"""
+    print("未指定子命令。你可以按场景选择下一步：")
+    print()
+    print("  【常用】")
+    print("    python main.py dashboard     启动 Web 控制台（默认 http://127.0.0.1:8090）")
+    print("    python main.py dashboard --host 0.0.0.0 --port 8090   局域网/服务器监听")
+    print("    python main.py api           启动统一 HTTP 服务（默认端口 8000，与控制台同源应用）")
+    print()
+    print("  【其他】")
+    print("    python main.py demo          交互式选择并运行演示脚本")
+    print("    python main.py doctor        上线前自检（FFmpeg、依赖、库目录、首页）")
+    print("    python main.py status        检查部分依赖是否已安装")
+    print("    python main.py clean         清理缓存与部分临时文件（慎用）")
+    print("    python main.py cli --help    命令行工具帮助")
+    print()
+    print("  【说明】")
+    print("    python main.py --help        查看所有子命令与参数")
+    print("    探活与健康：启动后访问 GET /api/studio/v1/health")
+    print("    架构前缀清单：GET /api/meta/architecture")
+    print("    业务落地（非技术说明）：docs/业务落地说明.md")
+    print("    配置模板：复制 .env.example 为 .env")
     print()
 
 
@@ -89,13 +120,19 @@ def cmd_demo(args):
 
 def cmd_dashboard(args):
     """启动 Dashboard 控制台"""
+    if getattr(args, "host", None) is not None:
+        os.environ["DASHBOARD_HOST"] = args.host
+    if getattr(args, "port", None) is not None:
+        os.environ["DASHBOARD_PORT"] = str(args.port)
+
+    host = os.environ.get("DASHBOARD_HOST", "127.0.0.1")
+    port = os.environ.get("DASHBOARD_PORT", "8090")
     print("启动 Dashboard 控制台...")
-    print("访问地址：http://localhost:8090")
+    print(f"访问地址：http://{host}:{port}")
     print()
-    
-    # 导入并运行 dashboard
-    sys.path.insert(0, str(Path(__file__).parent))
+
     from scripts.dashboard import run_dashboard
+
     run_dashboard()
 
 
@@ -141,6 +178,13 @@ def cmd_clean(args):
     print("清理完成!")
 
 
+def cmd_doctor(args):
+    """环境自检（FFmpeg、关键依赖、Studio 库目录、静态页）。"""
+    from shared.ops.webapp.preflight import print_report_and_exit
+
+    return print_report_and_exit()
+
+
 def cmd_status(args):
     """显示项目状态"""
     print("项目状态:")
@@ -179,8 +223,6 @@ def cmd_status(args):
 
 def main():
     """主函数"""
-    print_banner()
-    
     parser = argparse.ArgumentParser(
         description="PythonProject1 主入口启动程序",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -191,13 +233,15 @@ def main():
     python main.py cli list-templates  # CLI 工具
     python main.py clean            # 清理缓存
     python main.py status           # 查看状态
+    python main.py doctor           # 上线前自检
         """
     )
     
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
     
     # API 命令
-    api_parser = subparsers.add_parser("api", help="启动 API 服务")
+    api_parser = subparsers.add_parser("api", help="启动统一 API（同源 Dashboard，无旧版 /api/v1/jobs）")
+    api_parser.add_argument("--host", default="0.0.0.0", help="监听地址")
     api_parser.add_argument("--port", type=int, default=8000, help="端口号")
     api_parser.add_argument("--reload", action="store_true", help="热重载")
     api_parser.set_defaults(func=cmd_api)
@@ -218,18 +262,39 @@ def main():
     # Status 命令
     status_parser = subparsers.add_parser("status", help="显示项目状态")
     status_parser.set_defaults(func=cmd_status)
+
+    # Doctor 命令（业务落地自检）
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="环境自检：FFmpeg、关键依赖、Studio 库目录、static 首页",
+    )
+    doctor_parser.set_defaults(func=cmd_doctor)
     
     # Dashboard 命令
     dashboard_parser = subparsers.add_parser("dashboard", help="启动 Dashboard 控制台")
+    dashboard_parser.add_argument(
+        "--host",
+        default=None,
+        help="监听地址（不设则沿用环境变量 DASHBOARD_HOST，默认 127.0.0.1；外网常用 0.0.0.0）",
+    )
+    dashboard_parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="端口（不设则沿用 DASHBOARD_PORT，默认 8090）",
+    )
     dashboard_parser.set_defaults(func=cmd_dashboard)
     
     # 解析参数
     args = parser.parse_args()
-    
+
     if not args.command:
-        parser.print_help()
+        print_next_steps()
         return 0
-    
+
+    # doctor 面向脚本/运维输出，不打印横幅便于解析
+    if args.command != "doctor":
+        print_banner()
     return args.func(args)
 
 

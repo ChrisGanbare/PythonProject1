@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 意图编译 - PythonProject1 v2.3</title>
+    <title>AI 意图编译 - 数据可视化视频生成平台</title>
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
@@ -186,6 +186,25 @@
                         
                         <!-- Step 2: 编译完成 -->
                         <div v-if="msg.type === 'compiled'">
+                            <div class="mb-3">
+                                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                已理解你的需求，为你生成了以下配置：
+                            </div>
+                            <div class="code-preview mb-3">
+                                <div><span style="color:#9ca3af">项目:</span> {{ msg.data.project }}</div>
+                                <div><span style="color:#9ca3af">模板:</span> {{ msg.data.template }}</div>
+                                <div><span style="color:#9ca3af">品牌:</span> {{ msg.data.brand }}</div>
+                                <div><span style="color:#9ca3af">参数:</span> {{ JSON.stringify(msg.data.kwargs, null, 2).substring(0, 200) }}...</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary btn-sm" @click="confirmAndExecute(msg.data)">
+                                    <i class="bi bi-play-fill me-2"></i>确认执行
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" @click="editParameters(msg.data)">
+                                    <i class="bi bi-pencil me-2"></i>编辑参数
+                                </button>
+                            </div>
+                        </div>
                         
                         <!-- Step 3: 参数编辑 -->
                         <div v-if="msg.type === 'editing'">
@@ -244,19 +263,10 @@
                                 <i class="bi bi-check-circle-fill me-2"></i>
                                 <strong>视频生成成功！</strong>
                             </div>
-                            <div class="video-result mb-3">
-                                <div class="text-center">
-                                    <i class="bi bi-play-circle display-1 mb-3"></i>
-                                    <div>视频预览</div>
-                                </div>
-                            </div>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-success">
+                                <a v-if="msg.videoPath" :href="msg.videoPath" class="btn btn-success" download>
                                     <i class="bi bi-download me-2"></i>下载视频
-                                </button>
-                                <button class="btn btn-outline-primary">
-                                    <i class="bi bi-share me-2"></i>分享
-                                </button>
+                                </a>
                                 <button class="btn btn-outline-secondary" @click="startNew">
                                     <i class="bi bi-plus-circle me-2"></i>创建新视频
                                 </button>
@@ -316,7 +326,7 @@
                 <i class="bi bi-house-door me-2"></i>返回首页
             </a>
             <a href="/projects.html" class="btn btn-outline-light btn-lg ms-2">
-                <i class="bi bi-folder me-2"></i>项目管理
+                <i class="bi bi-camera-reels me-2"></i>视频工作台
             </a>
         </div>
     </div>
@@ -346,9 +356,8 @@
                 }
             },
             async mounted() {
-                // 检查 API 是否可用
                 try {
-                    const res = await fetch('/api/registry')
+                    const res = await fetch('/api/studio/v1/health')
                     if (!res.ok) throw new Error('API 不可用')
                     this.apiAvailable = true
                 } catch (e) {
@@ -441,43 +450,64 @@
                     })
                 },
                 
-                confirmAndExecute(data) {
-                    // Remove last AI response
+                async confirmAndExecute(data) {
                     this.aiResponses.pop()
-                    
-                    // Step 4: Executing
-                    this.aiResponses.push({
-                        type: 'executing'
-                    })
-                    
+                    this.aiResponses.push({ type: 'executing' })
                     this.executeProgress = 0
-                    this.executeMessage = '准备渲染...'
-                    
-                    // Simulate execution
-                    const interval = setInterval(() => {
-                        this.executeProgress += 10
-                        if (this.executeProgress === 30) {
-                            this.executeMessage = '渲染图表中...'
-                        } else if (this.executeProgress === 60) {
-                            this.executeMessage = '合成视频中...'
-                        } else if (this.executeProgress === 90) {
-                            this.executeMessage = '最后处理...'
+                    this.executeMessage = '提交渲染任务...'
+                    this.isProcessing = true
+
+                    try {
+                        const project = data.project || 'v2_templates'
+                        const task = 'render'
+                        const res = await fetch(`/api/run/${project}/${task}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ kwargs: data.kwargs || {} })
+                        })
+                        const result = await res.json()
+                        if (!res.ok) throw new Error(result.detail || '提交失败')
+
+                        const jobId = result.job_id
+                        this.executeMessage = '渲染中...'
+                        this.executeProgress = 20
+
+                        let attempts = 0
+                        const poll = async () => {
+                            try {
+                                const sr = await fetch(`/api/studio/v1/jobs/${jobId}`)
+                                if (!sr.ok && attempts++ < 3) { setTimeout(poll, 2000); return }
+                                const sd = await sr.json()
+
+                                if (sd.status === 'success' || sd.status === 'completed') {
+                                    this.executeProgress = 100
+                                    this.executeMessage = '完成！'
+                                    const r = (typeof sd.result === 'object' && sd.result) || {}
+                                    const videoPath = r.video_download_url || r.final_video_path || `/api/video/v2/download/${jobId}`
+                                    this.aiResponses.pop()
+                                    this.aiResponses.push({ type: 'completed', videoPath })
+                                    this.isProcessing = false
+                                } else if (sd.status === 'failed') {
+                                    throw new Error(sd.error || '渲染失败')
+                                } else if (attempts++ < 90) {
+                                    this.executeProgress = Math.min(90, 20 + attempts)
+                                    this.executeMessage = attempts < 10 ? '渲染图表中...' : attempts < 30 ? '合成视频中...' : '处理中...'
+                                    setTimeout(poll, 2000)
+                                } else {
+                                    throw new Error('渲染超时')
+                                }
+                            } catch (e) {
+                                this.aiResponses.pop()
+                                this.aiResponses.push({ type: 'error', error: e.message })
+                                this.isProcessing = false
+                            }
                         }
-                        
-                        if (this.executeProgress >= 100) {
-                            clearInterval(interval)
-                            
-                            // Remove executing message
-                            this.aiResponses.pop()
-                            
-                            // Step 5: Completed
-                            this.aiResponses.push({
-                                type: 'completed'
-                            })
-                            
-                            this.isProcessing = false
-                        }
-                    }, 500)
+                        setTimeout(poll, 1500)
+                    } catch (e) {
+                        this.aiResponses.pop()
+                        this.aiResponses.push({ type: 'error', error: e.message })
+                        this.isProcessing = false
+                    }
                 },
                 
                 editParameters(data) {
@@ -540,9 +570,14 @@
                     this.isProcessing = false
                 },
                 
+                retryCompilation() {
+                    this.aiResponses = this.aiResponses.filter(m => m.type !== 'error')
+                    this.isProcessing = false
+                    this.showQuickSuggestions = true
+                },
+
                 goHome() {
-                    alert('返回首页')
-                    // TODO: 实现路由
+                    window.location.href = '/'
                 },
                 
                 sleep(ms) {

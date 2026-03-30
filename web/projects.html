@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>项目管理 - PythonProject1 v2.3</title>
+    <title>视频工作台 - 数据可视化视频生成平台</title>
     <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
@@ -12,129 +12,44 @@
             --secondary-color: #764ba2;
             --success-color: #10b981;
         }
-        
         body {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
-        .app-container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
+        .app-container { max-width: 1200px; margin: 0 auto; }
         .main-card {
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 40px;
-            margin-bottom: 30px;
+            padding: 30px;
+            margin-bottom: 24px;
         }
-        
         .project-card {
             border: 2px solid #e5e7eb;
             border-radius: 15px;
             padding: 20px;
             transition: all 0.3s;
-            cursor: pointer;
             position: relative;
+            background: white;
         }
-        
         .project-card:hover {
             border-color: var(--primary-color);
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
         }
-        
         .project-card.recommended {
             border-color: var(--success-color);
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.1) 100%);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(16, 185, 129, 0.08) 100%);
         }
-        
-        .project-card.executing {
-            border-color: #f59e0b;
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
-            pointer-events: none;
-        }
-        
-        /* 执行按钮样式优化 */
-        .btn-execute {
-            min-width: 100px;
-            font-weight: 600;
-        }
-        
-        .btn-execute:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        /* 查看/下载按钮样式 */
-        .btn-view {
-            background: #eff6ff;
-            border-color: #3b82f6;
-            color: #3b82f6;
-        }
-        
-        .btn-view:hover {
-            background: #3b82f6;
-            color: white;
-        }
-        
-        .btn-download {
-            background: #10b981;
-            border-color: #10b981;
-            color: white;
-        }
-        
-        .btn-download:hover {
-            background: #059669;
-            color: white;
-        }
-        
-        /* 项目排序标签 */
-        .project-order-badge {
-            position: absolute;
-            top: -10px;
-            right: -10px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--primary-color);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 0.9rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        
-        /* 执行历史表格优化 */
-        .table tbody tr {
-            cursor: pointer;
-        }
-        
-        .table tbody tr:hover {
-            background: #f9fafb;
-        }
-        
-        /* 加载动画 */
-        .spinner-border-sm {
-            width: 1rem;
-            height: 1rem;
-            border-width: 0.2em;
-        }
-        
-        .status-badge {
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-        }
-        
+        .task-btn { font-size: 0.85rem; }
+        .task-btn .bi { font-size: 0.75rem; }
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; }
         .status-success { background: #d1fae5; color: #065f46; }
         .status-failed { background: #fee2e2; color: #991b1b; }
         .status-processing { background: #fef3c7; color: #92400e; }
+        .spinner-border-sm { width: 1rem; height: 1rem; border-width: 0.2em; }
+        .empty-state { padding: 40px 20px; text-align: center; color: #9ca3af; }
     </style>
 </head>
 <body>
@@ -142,209 +57,138 @@
         <!-- Header -->
         <div class="text-center text-white mb-4">
             <h1 class="display-5 fw-bold">
-                <i class="bi bi-folder2-open me-3"></i>
-                项目管理
+                <i class="bi bi-camera-reels me-3"></i>视频工作台
             </h1>
-            <p class="lead mb-3">管理所有子项目和任务执行历史</p>
-            
-            <!-- 快速引导 -->
-            <div class="alert alert-light text-start d-inline-block" style="max-width: 600px;">
-                <h6 class="fw-bold"><i class="bi bi-lightbulb me-2 text-warning"></i>快速开始</h6>
-                <ol class="mb-0 small">
-                    <li><strong>推荐项目</strong>: 点击 <span class="badge bg-success">推荐</span> 标记的项目 (如 v2_templates)</li>
-                    <li><strong>执行任务</strong>: 点击项目卡片上的"执行"按钮</li>
-                    <li><strong>查看历史</strong>: 在下方查看执行历史和下载视频</li>
-                    <li><strong>新建项目</strong>: 点击右上角"新建项目"创建自定义项目</li>
-                </ol>
+            <p class="lead mb-0">选择领域场景，一键生成专业数据可视化视频</p>
+        </div>
+
+        <!-- Quick Nav -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <a href="/" class="btn btn-outline-light">
+                    <i class="bi bi-house-door me-1"></i>首页向导
+                </a>
+                <a href="/ai_compile.html" class="btn btn-outline-light ms-2">
+                    <i class="bi bi-chat-dots me-1"></i>AI 生成
+                </a>
+            </div>
+            <div>
+                <button class="btn btn-outline-light" @click="refreshAll">
+                    <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                </button>
             </div>
         </div>
 
-        <!-- Create Project Button -->
-        <div class="text-end mb-4">
-            <button class="btn btn-light btn-lg" data-bs-toggle="modal" data-bs-target="#createProjectModal">
-                <i class="bi bi-plus-lg me-2"></i>新建项目
-            </button>
-            <button class="btn btn-outline-light btn-lg ms-2" @click="refreshProjects">
-                <i class="bi bi-arrow-clockwise me-2"></i>刷新
-            </button>
+        <!-- Loading -->
+        <div v-if="loading" class="text-center text-white py-5">
+            <div class="spinner-border text-light mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h5>加载中...</h5>
         </div>
 
-        <!-- Projects Grid -->
-        <div class="row g-4">
-            <!-- 推荐项目优先显示 -->
-            <div class="col-md-6" v-for="(project, index) in sortedProjects" :key="project.name">
-                <div class="project-card" 
-                     :class="{recommended: project.recommended, executing: project.executing}"
-                     :style="{order: project.recommended ? index : index + 100}"
-                     @click="viewProject(project)">
-                    
-                    <!-- 项目序号标签 -->
-                    <div class="project-order-badge" :title="project.recommended ? '推荐项目' : '普通项目'">
-                        {{ index + 1 }}
-                    </div>
-                    
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <div>
-                            <h4 class="mb-1">
-                                <i class="bi bi-folder-fill me-2 text-primary"></i>
-                                {{ project.name }}
-                            </h4>
-                            <p class="text-muted mb-0">{{ project.description }}</p>
-                        </div>
-                        <span v-if="project.recommended" class="badge bg-success">
-                            <i class="bi bi-star-fill me-1"></i>推荐
-                        </span>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="badge bg-primary me-2">
-                                <i class="bi bi-play-fill me-1"></i>{{ project.tasks?.length || 0 }} 任务
-                            </span>
-                            <span class="badge bg-info">
-                                <i class="bi bi-gear me-1"></i>{{ project.capabilities?.viz_backends?.length || 0 }} 后端
+        <!-- Error -->
+        <div v-if="loadError" class="alert alert-danger mx-auto" style="max-width: 600px;">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ loadError }}
+            <button class="btn btn-sm btn-outline-danger ms-2" @click="refreshAll">重试</button>
+        </div>
+
+        <!-- Scene Cards -->
+        <div class="main-card" v-if="!loading && sortedProjects.length">
+            <h5 class="fw-bold mb-3">
+                <i class="bi bi-collection-play me-2 text-primary"></i>可用场景
+                <span class="badge bg-secondary ms-2">{{ sortedProjects.length }}</span>
+            </h5>
+            <div class="row g-3">
+                <div class="col-md-6" v-for="project in sortedProjects" :key="project.name">
+                    <div class="project-card" :class="{recommended: project.recommended}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h5 class="mb-1 fw-bold">
+                                    <i class="bi bi-film me-2 text-primary"></i>{{ project.displayName }}
+                                </h5>
+                                <p class="text-muted small mb-0">{{ project.description }}</p>
+                            </div>
+                            <span v-if="project.recommended" class="badge bg-success">
+                                <i class="bi bi-star-fill me-1"></i>推荐
                             </span>
                         </div>
-                        <button class="btn btn-sm btn-execute" 
-                                :class="project.executing ? 'btn-warning' : 'btn-outline-primary'"
-                                :disabled="project.executing"
-                                @click.stop="executeProject(project)">
-                            <span v-if="project.executing" class="spinner-border spinner-border-sm me-1" role="status"></span>
-                            <i v-else class="bi bi-play-fill me-1"></i>
-                            {{ project.executing ? '执行中...' : '执行' }}
-                        </button>
+                        <!-- Video Tasks -->
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <button v-for="task in project.videoTasks" :key="task.name"
+                                    class="btn btn-sm task-btn"
+                                    :class="project._executing === task.name ? 'btn-warning' : 'btn-outline-primary'"
+                                    :disabled="!!project._executing"
+                                    @click="executeTask(project, task)"
+                                    :title="task.description">
+                                <span v-if="project._executing === task.name" class="spinner-border spinner-border-sm me-1"></span>
+                                <i v-else class="bi bi-play-fill me-1"></i>
+                                {{ task.label }}
+                            </button>
+                        </div>
+                        <div class="mt-2 d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-dark border" v-for="b in project.capabilities?.viz_backends || []" :key="b">
+                                <i class="bi bi-cpu me-1"></i>{{ b }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- 项目数量提示 -->
-        <div class="text-center mt-4" v-if="projects.length > 6">
-            <div class="alert alert-light d-inline-block">
-                <i class="bi bi-info-circle me-2"></i>
-                已显示 {{ projects.length }} 个项目，推荐项目优先显示
-            </div>
-        </div>
 
         <!-- Execution History -->
-        <div class="main-card mt-4" v-if="executionHistory.length > 0">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3 class="mb-0">
-                    <i class="bi bi-clock-history me-2 text-primary"></i>
-                    执行历史
-                </h3>
-                <button class="btn btn-sm btn-outline-primary" @click="clearHistory">
-                    <i class="bi bi-trash me-1"></i>清空历史
-                </button>
+        <div class="main-card" v-if="executionHistory.length > 0">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0">
+                    <i class="bi bi-clock-history me-2 text-primary"></i>最近作业
+                    <span class="badge bg-secondary ms-1">{{ executionHistory.length }}</span>
+                </h5>
             </div>
-            
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
                         <tr>
-                            <th style="width: 30%">项目</th>
-                            <th style="width: 20%">任务</th>
-                            <th style="width: 15%">状态</th>
-                            <th style="width: 20%">时间</th>
-                            <th style="width: 15%">操作</th>
+                            <th>场景</th>
+                            <th>任务</th>
+                            <th>状态</th>
+                            <th>时间</th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="exec in executionHistory" :key="exec.id" @click="viewResult(exec)" style="cursor: pointer;">
-                            <td>
-                                <i class="bi bi-folder-fill me-2 text-primary"></i>
-                                <strong>{{ exec.project }}</strong>
-                            </td>
-                            <td>
-                                <span class="text-muted">{{ exec.task }}</span>
-                            </td>
+                        <tr v-for="exec in executionHistory" :key="exec.id">
+                            <td class="fw-bold">{{ exec.project }}</td>
+                            <td class="text-muted">{{ exec.task }}</td>
                             <td>
                                 <span class="status-badge" :class="'status-' + exec.status">
-                                    <i :class="'bi bi-' + getStatusIcon(exec.status)"></i>
-                                    {{ getStatusText(exec.status) }}
+                                    <i :class="'bi bi-' + statusIcon(exec.status)" class="me-1"></i>
+                                    {{ statusText(exec.status) }}
                                 </span>
                             </td>
-                            <td>
-                                <small class="text-muted">{{ exec.time }}</small>
-                            </td>
+                            <td><small class="text-muted">{{ exec.time }}</small></td>
                             <td @click.stop>
-                                <button v-if="exec.status === 'success'" 
-                                        class="btn btn-sm btn-view me-1" 
-                                        @click="viewResult(exec)"
-                                        title="查看执行结果">
-                                    <i class="bi bi-eye me-1"></i>查看
-                                </button>
                                 <button v-if="exec.video_path" 
-                                        class="btn btn-sm btn-download" 
-                                        @click="downloadVideo(exec)"
-                                        title="下载视频文件">
+                                        class="btn btn-sm btn-success"
+                                        @click="downloadVideo(exec)">
                                     <i class="bi bi-download me-1"></i>下载
                                 </button>
-                                <span v-if="exec.status === 'processing'" class="text-muted">
-                                    <i class="bi bi-hourglass-split me-1"></i>执行中...
+                                <span v-else-if="exec.status === 'processing'" class="text-muted small">
+                                    <i class="bi bi-hourglass-split me-1"></i>进行中
                                 </span>
-                                <span v-if="exec.status === 'failed'" class="text-danger">
-                                    <i class="bi bi-x-circle me-1"></i>失败
+                                <span v-else-if="exec.status === 'failed'" class="text-danger small">
+                                    <i class="bi bi-x-circle me-1"></i>{{ exec.error || '失败' }}
                                 </span>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            
-            <!-- 历史数量提示 -->
-            <div class="text-center mt-3" v-if="executionHistory.length > 10">
-                <div class="alert alert-light d-inline-block mb-0">
-                    <i class="bi bi-info-circle me-2"></i>
-                    已显示最近的 {{ executionHistory.length }} 条执行记录
-                </div>
-            </div>
         </div>
 
-        <!-- Back to Home -->
-        <div class="text-center mt-4">
-            <a href="/" class="btn btn-outline-light btn-lg">
-                <i class="bi bi-house-door me-2"></i>返回首页
-            </a>
-            <a href="/ai_compile.html" class="btn btn-outline-light btn-lg ms-2">
-                <i class="bi bi-chat-dots me-2"></i>AI 意图编译
-            </a>
-        </div>
-
-        <!-- Create Project Modal -->
-        <div class="modal fade" id="createProjectModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="bi bi-plus-lg me-2"></i>新建项目
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">项目名称</label>
-                            <input type="text" class="form-control" v-model="newProject.name" placeholder="例如：my_analysis">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">描述</label>
-                            <textarea class="form-control" v-model="newProject.description" rows="3" placeholder="项目描述..."></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">选择模板</label>
-                            <select class="form-select" v-model="newProject.template">
-                                <option value="">-- 选择模板 --</option>
-                                <option value="v2_templates">v2 通用模板</option>
-                                <option value="loan_comparison">贷款对比</option>
-                                <option value="fund_fee_erosion">基金手续费</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                        <button type="button" class="btn btn-primary" @click="createProject">创建</button>
-                    </div>
-                </div>
+        <!-- Empty State -->
+        <div class="main-card" v-if="!loading && !sortedProjects.length && !loadError">
+            <div class="empty-state">
+                <i class="bi bi-inbox display-1 mb-3"></i>
+                <h5>暂无可用场景</h5>
+                <p>请确认服务已正常启动</p>
             </div>
         </div>
     </div>
@@ -352,6 +196,23 @@
     <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
     <script>
+        const TASK_FILTER_OUT = new Set(['smoke_check', 'api'])
+
+        const TASK_LABELS = {
+            render: '生成视频',
+            loan_animation: '贷款对比动画',
+            scene_schedule_preview: '预览场景时间线',
+            fund_animation: '基金费率侵蚀动画',
+            generate_intro_video: '平台介绍视频'
+        }
+
+        const PROJECT_DISPLAY_NAMES = {
+            v2_templates: '通用图表模板',
+            loan_comparison: '贷款对比分析',
+            fund_fee_erosion: '基金手续费侵蚀',
+            video_platform_introduction: '平台介绍教程'
+        }
+
         const { createApp } = Vue
 
         createApp({
@@ -359,290 +220,187 @@
                 return {
                     projects: [],
                     executionHistory: [],
-                    newProject: {
-                        name: '',
-                        description: '',
-                        template: ''
-                    },
-                    loading: false
+                    loading: false,
+                    loadError: ''
                 }
             },
             mounted() {
-                this.fetchProjects()
-                this.fetchExecutionHistory()
+                this.refreshAll()
             },
             computed: {
-                recommendedProjects() {
-                    return this.projects.filter(p => p.recommended)
-                },
-                otherProjects() {
-                    return this.projects.filter(p => !p.recommended)
-                },
                 sortedProjects() {
-                    // 推荐项目优先，然后按名称排序
-                    const sorted = [...this.projects].sort((a, b) => {
+                    return [...this.projects].sort((a, b) => {
                         if (a.recommended && !b.recommended) return -1
                         if (!a.recommended && b.recommended) return 1
                         return a.name.localeCompare(b.name)
                     })
-                    return sorted
                 }
             },
             methods: {
+                refreshAll() {
+                    this.fetchProjects()
+                    this.fetchHistory()
+                },
+
                 async fetchProjects() {
                     this.loading = true
+                    this.loadError = ''
                     try {
                         const res = await fetch('/api/registry')
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`)
                         const data = await res.json()
-                        this.projects = data.projects || []
-                        
-                        // 标记推荐项目
                         const recommended = ['v2_templates', 'loan_comparison']
-                        this.projects.forEach(p => {
-                            p.recommended = recommended.includes(p.name)
-                        })
+
+                        this.projects = (data.projects || []).map(p => {
+                            const videoTasks = (p.tasks || [])
+                                .filter(t => !TASK_FILTER_OUT.has(t.name))
+                                .map(t => ({
+                                    ...t,
+                                    label: TASK_LABELS[t.name] || t.name
+                                }))
+                            return {
+                                ...p,
+                                displayName: PROJECT_DISPLAY_NAMES[p.name] || p.name,
+                                recommended: recommended.includes(p.name),
+                                videoTasks,
+                                _executing: null
+                            }
+                        }).filter(p => p.videoTasks.length > 0)
                     } catch (e) {
-                        console.error('Failed to fetch projects:', e)
+                        this.loadError = '加载失败：' + e.message
                     } finally {
                         this.loading = false
                     }
                 },
-                async fetchExecutionHistory() {
+
+                async fetchHistory() {
                     try {
-                        // TODO: 实现执行历史 API
-                        this.executionHistory = [
-                            {
-                                id: 1,
-                                project: 'v2_templates',
-                                task: 'render',
-                                status: 'success',
-                                time: '2024-03-24 10:30',
-                                video_path: '/outputs/video_1.mp4'
-                            },
-                            {
-                                id: 2,
-                                project: 'loan_comparison',
-                                task: 'render',
-                                status: 'success',
-                                time: '2024-03-23 15:20',
-                                video_path: '/outputs/video_2.mp4'
-                            }
-                        ]
+                        const res = await fetch('/api/studio/v1/jobs?limit=20')
+                        if (!res.ok) return
+                        const data = await res.json()
+                        const items = data.items || data.jobs || (Array.isArray(data) ? data : [])
+                        this.executionHistory = items
+                            .filter(j => !TASK_FILTER_OUT.has(j.task))
+                            .slice(0, 15)
+                            .map(j => {
+                                const st = j.status
+                                const isOk = st === 'success' || st === 'completed'
+                                const isFail = st === 'failed'
+                                const r = (typeof j.result === 'object' && j.result) || {}
+                                const videoPath = r.video_download_url || r.final_video_path ||
+                                    (isOk ? `/api/video/v2/download/${j.id || j.job_id}` : null)
+                                return {
+                                    id: j.id || j.job_id,
+                                    project: PROJECT_DISPLAY_NAMES[j.project] || j.project || '-',
+                                    task: TASK_LABELS[j.task] || j.task || '-',
+                                    status: isOk ? 'success' : isFail ? 'failed' : 'processing',
+                                    time: j.created_at ? new Date(j.created_at).toLocaleString('zh-CN') : '-',
+                                    video_path: videoPath,
+                                    error: j.error || (isFail ? (r.error || '') : ''),
+                                    job_id: j.id || j.job_id
+                                }
+                            })
                     } catch (e) {
-                        console.error('Failed to fetch history:', e)
+                        this.executionHistory = []
                     }
                 },
-                viewProject(project) {
-                    alert('查看项目详情：' + project.name)
-                    // TODO: 实现项目详情页面
-                },
-                async executeProject(project) {
-                    // 如果正在执行中，不允许重复点击
-                    if (project.executing) return
-                    
-                    if (!confirm(`确定要执行项目 "${project.name}" 的默认任务吗？`)) return
-                    
-                    // 标记为执行中
-                    project.executing = true
-                    
+
+                async executeTask(project, task) {
+                    if (project._executing) return
+                    if (!confirm(`确定要执行「${project.displayName}」的「${task.label}」吗？`)) return
+
+                    project._executing = task.name
                     try {
-                        // 使用 v2 API 创建视频作业
-                        const res = await fetch('/api/video/v2/create', {
+                        const res = await fetch(`/api/run/${project.name}/${task.name}`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                template: project.template || 'v2_templates',
-                                data: project.default_data || {},
-                                brand: 'default'
-                            })
+                            body: JSON.stringify({ kwargs: {} })
                         })
-                        
                         const data = await res.json()
-                        
-                        if (res.ok && data.job_id) {
-                            // 显示成功提示
-                            this.showToast(`任务已启动！作业 ID: ${data.job_id}`, 'success')
-                            
-                            // 添加到执行历史
-                            this.executionHistory.unshift({
-                                id: Date.now(),
-                                project: project.name,
-                                task: project.default_task || 'render',
-                                status: 'processing',
-                                time: new Date().toLocaleString('zh-CN', { 
-                                    year: 'numeric', 
-                                    month: '2-digit', 
-                                    day: '2-digit', 
-                                    hour: '2-digit', 
-                                    minute: '2-digit' 
-                                }),
-                                job_id: data.job_id
-                            })
-                            
-                            // 开始轮询状态
-                            this.pollJobStatus(data.job_id, project)
-                        } else {
-                            throw new Error(data.detail || '执行失败')
+                        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`)
+
+                        const jobId = data.job_id
+                        this.showToast(`「${task.label}」已启动`, 'success')
+
+                        const entry = {
+                            id: jobId, job_id: jobId,
+                            project: project.displayName,
+                            task: task.label,
+                            status: 'processing',
+                            time: new Date().toLocaleString('zh-CN'),
+                            video_path: null, error: ''
                         }
+                        this.executionHistory.unshift(entry)
+                        this.pollJob(jobId, project, entry)
                     } catch (e) {
-                        project.executing = false
+                        project._executing = null
                         this.showToast('执行失败：' + e.message, 'danger')
                     }
                 },
-                
-                async pollJobStatus(jobId, project) {
-                    // 轮询作业状态
-                    const maxAttempts = 30
+
+                async pollJob(jobId, project, entry) {
                     let attempts = 0
-                    
                     const poll = async () => {
                         try {
-                            const res = await fetch(`/api/video/v2/status/${jobId}`)
-                            const data = await res.json()
-                            
-                            if (data.status === 'completed') {
-                                project.executing = false
-                                this.showToast('任务完成！', 'success')
-                                
-                                // 更新执行历史
-                                const exec = this.executionHistory.find(e => e.id === Date.now())
-                                if (exec) {
-                                    exec.status = 'success'
-                                    exec.video_path = data.video_url || `/api/video/v2/download/${jobId}`
-                                }
-                            } else if (data.status === 'failed') {
-                                project.executing = false
-                                this.showToast('任务失败：' + (data.error || '未知错误'), 'danger')
-                                
-                                const exec = this.executionHistory.find(e => e.job_id === jobId)
-                                if (exec) exec.status = 'failed'
-                            } else if (attempts < maxAttempts) {
-                                attempts++
-                                setTimeout(poll, 2000) // 每 2 秒轮询一次
+                            const res = await fetch(`/api/studio/v1/jobs/${jobId}`)
+                            if (!res.ok) {
+                                if (attempts++ < 3) { setTimeout(poll, 2000); return }
+                                throw new Error(`HTTP ${res.status}`)
+                            }
+                            const d = await res.json()
+                            if (d.status === 'success' || d.status === 'completed') {
+                                project._executing = null
+                                entry.status = 'success'
+                                const r = (typeof d.result === 'object' && d.result) || {}
+                                entry.video_path = r.video_download_url || r.final_video_path || `/api/video/v2/download/${jobId}`
+                                this.showToast(`「${entry.task}」完成`, 'success')
+                            } else if (d.status === 'failed') {
+                                project._executing = null
+                                entry.status = 'failed'
+                                entry.error = d.error || '渲染失败'
+                                this.showToast('任务失败：' + (d.error || '未知错误'), 'danger')
+                            } else if (attempts++ < 90) {
+                                setTimeout(poll, 2000)
                             } else {
-                                project.executing = false
-                                this.showToast('任务执行超时', 'warning')
+                                project._executing = null
+                                entry.status = 'failed'
+                                entry.error = '超时'
+                                this.showToast('任务超时', 'warning')
                             }
                         } catch (e) {
-                            project.executing = false
-                            this.showToast('状态查询失败：' + e.message, 'danger')
+                            project._executing = null
+                            entry.status = 'failed'
+                            entry.error = e.message
                         }
                     }
-                    
-                    poll()
+                    setTimeout(poll, 1500)
                 },
-                
-                showToast(message, type = 'info') {
-                    // 创建临时提示
-                    const toast = document.createElement('div')
-                    toast.className = `alert alert-${type} position-fixed top-0 start-50 translate-middle-x mt-4`
-                    toast.style.zIndex = '9999'
-                    toast.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : type === 'danger' ? 'x-circle' : 'info-circle'} me-2"></i>${message}`
-                    document.body.appendChild(toast)
-                    
-                    setTimeout(() => {
-                        toast.remove()
-                    }, 3000)
-                },
-                async createProject() {
-                    if (!this.newProject.name) {
-                        alert('请输入项目名称')
-                        return
-                    }
-                    
-                    try {
-                        const res = await fetch('/api/projects', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(this.newProject)
-                        })
-                        
-                        if (res.ok) {
-                            alert('项目创建成功！')
-                            this.newProject = { name: '', description: '', template: '' }
-                            const modal = bootstrap.Modal.getInstance(document.getElementById('createProjectModal'))
-                            modal.hide()
-                            this.fetchProjects()
-                        } else {
-                            throw new Error('创建失败')
-                        }
-                    } catch (e) {
-                        alert('创建失败：' + e.message)
-                    }
-                },
-                refreshProjects() {
-                    this.fetchProjects()
-                    this.fetchExecutionHistory()
-                },
-                getStatusIcon(status) {
-                    const icons = {
-                        'success': 'check-circle-fill',
-                        'failed': 'x-circle-fill',
-                        'processing': 'hourglass-split'
-                    }
-                    return icons[status] || 'question-circle-fill'
-                },
-                getStatusText(status) {
-                    const texts = {
-                        'success': '成功',
-                        'failed': '失败',
-                        'processing': '执行中'
-                    }
-                    return texts[status] || status
-                },
-                viewResult(exec) {
-                    if (exec.status === 'processing') {
-                        this.showToast('任务正在执行中，请稍候...', 'info')
-                        return
-                    }
-                    
-                    if (exec.status === 'failed') {
-                        this.showToast('任务执行失败，无法查看结果', 'danger')
-                        return
-                    }
-                    
-                    // 显示执行结果详情
-                    const details = `
-项目：${exec.project}
-任务：${exec.task}
-状态：${this.getStatusText(exec.status)}
-时间：${exec.time}
-${exec.job_id ? '作业 ID: ' + exec.job_id : ''}
-                    `.trim()
-                    
-                    alert('执行结果详情：\n\n' + details)
-                    
-                    // TODO: 打开结果详情页面
-                    // window.location.href = `/result/${exec.id}`
-                },
-                
+
                 downloadVideo(exec) {
-                    if (!exec.video_path) {
-                        this.showToast('视频文件不存在', 'danger')
-                        return
-                    }
-                    
-                    // 创建下载链接
+                    if (!exec.video_path) return
                     const a = document.createElement('a')
                     a.href = exec.video_path
-                    a.download = `${exec.project}_${exec.task}_${new Date().getTime()}.mp4`
-                    a.target = '_blank'
-                    document.body.appendChild(a)
+                    a.download = `${exec.project}_${exec.task}.mp4`
                     a.click()
-                    document.body.removeChild(a)
-                    
-                    this.showToast('下载已开始', 'success')
                 },
-                
-                clearHistory() {
-                    if (confirm('确定要清空所有执行历史吗？此操作不可恢复。')) {
-                        this.executionHistory = []
-                        this.showToast('执行历史已清空', 'success')
-                    }
+
+                showToast(message, type = 'info') {
+                    const icons = { success: 'check-circle', danger: 'x-circle', warning: 'exclamation-triangle', info: 'info-circle' }
+                    const el = document.createElement('div')
+                    el.className = `alert alert-${type} position-fixed top-0 start-50 translate-middle-x mt-4 shadow-lg`
+                    el.style.zIndex = '9999'
+                    el.style.minWidth = '280px'
+                    el.innerHTML = `<i class="bi bi-${icons[type] || 'info-circle'} me-2"></i>${message}`
+                    document.body.appendChild(el)
+                    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s' }, 2700)
+                    setTimeout(() => el.remove(), 3000)
                 },
-                
-                goHome() {
-                    window.location.href = '/'
+
+                statusIcon(s) {
+                    return { success: 'check-circle-fill', failed: 'x-circle-fill', processing: 'hourglass-split' }[s] || 'question-circle'
+                },
+                statusText(s) {
+                    return { success: '完成', failed: '失败', processing: '进行中' }[s] || s
                 }
             }
         }).mount('#app')

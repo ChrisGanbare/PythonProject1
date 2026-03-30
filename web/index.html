@@ -114,21 +114,23 @@
             position: relative;
         }
         
+        .step::before,
         .step::after {
             content: '';
             position: absolute;
-            top: 50%;
-            right: 0;
-            width: 50%;
+            top: 20px;
             height: 2px;
             background: #e5e7eb;
         }
-        
-        .step:last-child::after {
-            display: none;
-        }
-        
+        .step::before { left: 0; right: 50%; }
+        .step::after { left: 50%; right: 0; }
+        .step:first-child::before { display: none; }
+        .step:last-child::after { display: none; }
+        .step.completed::before,
         .step.completed::after {
+            background: var(--success-color);
+        }
+        .step.active::before {
             background: var(--success-color);
         }
         
@@ -270,8 +272,8 @@
                         <button type="button" class="btn" :class="dataInputMode === 'manual' ? 'btn-primary' : 'btn-outline-primary'" @click="dataInputMode = 'manual'">
                             <i class="bi bi-keyboard me-2"></i>手动输入
                         </button>
-                        <button type="button" class="btn" :class="dataInputMode === 'upload' ? 'btn-primary' : 'btn-outline-primary'" @click="dataInputMode = 'upload'">
-                            <i class="bi bi-upload me-2"></i>上传文件
+                        <button type="button" class="btn" :class="dataInputMode === 'upload' ? 'btn-primary' : 'btn-outline-primary'" @click="dataInputMode = 'upload'" disabled title="文件上传功能即将上线">
+                            <i class="bi bi-upload me-2"></i>上传文件 <span class="badge bg-warning text-dark ms-1">即将上线</span>
                         </button>
                     </div>
                 </div>
@@ -449,31 +451,36 @@
 
                 <!-- 生成完成 -->
                 <div v-if="videoGenerated">
-                    <div class="video-preview">
-                        <div class="text-center">
-                            <i class="bi bi-play-circle display-1 mb-3"></i>
-                            <p>视频预览</p>
-                        </div>
-                    </div>
                     <div class="alert alert-success">
                         <i class="bi bi-check-circle-fill me-2"></i>
                         <strong>视频生成成功！</strong>
-                        <div class="mt-2">
-                            <button class="btn btn-success me-2">
+                        <div class="mt-3 d-flex flex-wrap gap-2">
+                            <a v-if="generatedVideoUrl" :href="generatedVideoUrl" class="btn btn-success" download>
                                 <i class="bi bi-download me-2"></i>下载视频
-                            </button>
-                            <button class="btn btn-outline-primary">
-                                <i class="bi bi-share me-2"></i>分享
-                            </button>
-                            <button class="btn btn-outline-secondary ms-2" @click="reset">
+                            </a>
+                            <button class="btn btn-outline-secondary" @click="reset">
                                 <i class="bi bi-plus-circle me-2"></i>创建新视频
                             </button>
                         </div>
                     </div>
                 </div>
 
+                <!-- 生成失败 -->
+                <div v-if="generationError && !isGenerating" class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>生成失败：</strong>{{ generationError }}
+                    <div class="mt-2">
+                        <button class="btn btn-outline-danger btn-sm" @click="startGeneration">
+                            <i class="bi bi-arrow-clockwise me-1"></i>重试
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm ms-2" @click="reset">
+                            <i class="bi bi-arrow-left me-1"></i>重新开始
+                        </button>
+                    </div>
+                </div>
+
                 <!-- 操作按钮 -->
-                <div v-if="!videoGenerated" class="d-flex justify-content-between mt-4">
+                <div v-if="!videoGenerated && !generationError" class="d-flex justify-content-between mt-4">
                     <button class="btn btn-outline-secondary" @click="prevStep" v-if="!isGenerating">
                         <i class="bi bi-arrow-left me-2"></i>上一步
                     </button>
@@ -507,26 +514,26 @@
             </div>
         </div>
 
-        <!-- Advanced Features -->
+        <!-- More Features -->
         <div class="row g-4">
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body text-center p-4">
                         <i class="bi bi-chat-dots display-4 text-primary mb-3"></i>
                         <h5>AI 意图编译</h5>
-                        <p class="text-muted">用自然语言描述需求，AI 自动生成视频</p>
+                        <p class="text-muted">用自然语言描述需求，AI 自动编译生成参数并执行渲染</p>
                         <button class="btn btn-outline-primary" @click="goToAICompile">
-                            <i class="bi bi-box-arrow-in-up-right me-2"></i>尝试
+                            <i class="bi bi-box-arrow-in-up-right me-2"></i>进入
                         </button>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="card h-100">
                     <div class="card-body text-center p-4">
                         <i class="bi bi-camera-reels display-4 text-primary mb-3"></i>
                         <h5>视频工作台</h5>
-                        <p class="text-muted">选择领域场景，一键生成专业视频</p>
+                        <p class="text-muted">贷款对比、基金费率、平台介绍等领域场景一键成片</p>
                         <button class="btn btn-outline-primary" @click="goToProjects">
                             <i class="bi bi-box-arrow-in-up-right me-2"></i>进入
                         </button>
@@ -563,6 +570,8 @@
                     generateProgress: 0,
                     generatingMessage: '准备生成...',
                     videoGenerated: false,
+                    generatedVideoUrl: '',
+                    generationError: '',
                     templates: [
                         { id: 'bar_chart_race', name: '柱状图竞赛', description: '排名变化展示', icon: 'bi-bar-chart-fill' },
                         { id: 'line_chart_animated', name: '动态折线图', description: '趋势展示', icon: 'bi-graph-up' },
@@ -738,8 +747,7 @@
                         const valuesValid = this.validateInput('values')
                         
                         if (!labelsValid || !valuesValid) {
-                            alert('⚠️ 数据格式有误，请检查红色框中的错误提示！')
-                            return // 校验失败，不进入下一步
+                            return
                         }
                     }
                     
@@ -771,10 +779,11 @@
                     this.isGenerating = true
                     this.videoGenerated = false
                     this.generateProgress = 0
-                    this.generatingMessage = '准备提交...'
+                    this.generationError = ''
+                    this.generatedVideoUrl = ''
+                    this.generatingMessage = '提交请求...'
                     
                     try {
-                        // 构建请求数据
                         const requestData = {
                             template: {
                                 template_id: this.selectedTemplate,
@@ -786,14 +795,10 @@
                                 values: this.manualData.values,
                                 series_name: this.manualData.seriesName
                             },
-                            brand: {
-                                brand_id: this.selectedBrand
-                            },
+                            brand: { brand_id: this.selectedBrand },
                             platform: 'bilibili'
                         }
                         
-                        // 调用 API 创建视频
-                        this.generatingMessage = '提交请求...'
                         const createRes = await fetch('/api/video/v2/create', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -801,42 +806,54 @@
                         })
                         
                         if (!createRes.ok) {
-                            throw new Error('创建失败')
+                            const err = await createRes.json().catch(() => ({}))
+                            throw new Error(err.detail || `请求失败 (HTTP ${createRes.status})`)
                         }
                         
                         const createData = await createRes.json()
                         const jobId = createData.job_id
+                        this.generatingMessage = '渲染中...'
                         
-                        // 轮询查询状态
-                        this.generatingMessage = '等待响应...'
-                        const pollInterval = setInterval(async () => {
-                            const statusRes = await fetch(`/api/video/v2/status/${jobId}`)
-                            const statusData = await statusRes.json()
-                            
-                            this.generateProgress = statusData.progress
-                            this.generatingMessage = statusData.message
-                            
-                            if (statusData.status === 'completed') {
-                                clearInterval(pollInterval)
+                        let attempts = 0
+                        const maxAttempts = 90
+                        const poll = async () => {
+                            try {
+                                const statusRes = await fetch(`/api/video/v2/status/${jobId}`)
+                                const statusData = await statusRes.json()
+                                
+                                this.generateProgress = statusData.progress || Math.min(90, 10 + attempts * 2)
+                                this.generatingMessage = statusData.message || '处理中...'
+                                
+                                if (statusData.status === 'completed') {
+                                    this.isGenerating = false
+                                    this.videoGenerated = true
+                                    this.generatedVideoUrl = `/api/video/v2/download/${jobId}`
+                                    this.recentVideos.unshift({
+                                        id: jobId,
+                                        name: this.getTemplateName(this.selectedTemplate),
+                                        date: new Date().toLocaleString('zh-CN'),
+                                        url: `/api/video/v2/download/${jobId}`
+                                    })
+                                } else if (statusData.status === 'failed') {
+                                    this.isGenerating = false
+                                    this.generationError = statusData.error || '渲染失败'
+                                } else if (++attempts < maxAttempts) {
+                                    setTimeout(poll, 2000)
+                                } else {
+                                    this.isGenerating = false
+                                    this.generationError = '渲染超时，请稍后在工作台查看结果'
+                                }
+                            } catch (e) {
+                                if (++attempts < 3) { setTimeout(poll, 2000); return }
                                 this.isGenerating = false
-                                this.videoGenerated = true
-                                // 添加到最近视频
-                                this.recentVideos.unshift({
-                                    id: jobId,
-                                    name: this.getTemplateName(this.selectedTemplate),
-                                    date: new Date().toLocaleString('zh-CN')
-                                })
-                            } else if (statusData.status === 'failed') {
-                                clearInterval(pollInterval)
-                                this.isGenerating = false
-                                alert('生成失败：' + statusData.error)
+                                this.generationError = '网络错误：' + e.message
                             }
-                        }, 1000)
+                        }
+                        setTimeout(poll, 1500)
                         
                     } catch (e) {
-                        console.error(e)
                         this.isGenerating = false
-                        alert('生成失败：' + e.message)
+                        this.generationError = e.message
                     }
                 },
                 reset() {
@@ -847,6 +864,9 @@
                     this.videoGenerated = false
                     this.isGenerating = false
                     this.generateProgress = 0
+                    this.generationError = ''
+                    this.generatedVideoUrl = ''
+                    this.validationErrors = { labels: '', values: '' }
                 },
                 goToAICompile() {
                     window.location.href = '/ai_compile.html'
@@ -859,40 +879,9 @@
     </script>
 
     <!-- Global Settings Modal -->
-    <script src="settings-modal.html"></script>
-    <script>
-        // Settings Modal Integration
-        document.addEventListener('DOMContentLoaded', function() {
-            // Load settings from localStorage
-            const settings = {
-                openai_base_url: localStorage.getItem('openai_base_url') || 'https://api.openai.com/v1',
-                openai_api_key: localStorage.getItem('openai_api_key') || '',
-                openai_model: localStorage.getItem('openai_model') || 'gpt-3.5-turbo',
-                quality_preset: localStorage.getItem('quality_preset') || 'draft',
-                video_width: parseInt(localStorage.getItem('video_width')) || 1920,
-                video_height: parseInt(localStorage.getItem('video_height')) || 1080,
-                video_fps: parseInt(localStorage.getItem('video_fps')) || 30
-            }
-            
-            // Initialize settings modal if component is available
-            if (typeof SettingsModalComponent !== 'undefined') {
-                const settingsApp = Vue.createApp(SettingsModalComponent)
-                settingsApp.mount('#settingsModalComponent')
-            }
-            
-            // Listen for settings updates
-            window.addEventListener('settings-updated', (event) => {
-                console.log('Settings updated:', event.detail)
-                // Update app settings if needed
-            })
-        })
-    </script>
-
-    <!-- Settings Modal Component -->
-<!-- 
-全局设置模态框组件 - 纯 JavaScript 实现
-用法：在页面中引入此文件
--->
+    <!--
+    全局设置模态框 - 内联实现
+    -->
 
 <!-- Settings Modal -->
 <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
@@ -1352,7 +1341,7 @@ async function validateAPI() {
 }
 
 // 保存设置
-function saveSettings() {
+async function saveSettings() {
   const provider = document.getElementById('settingsProvider').value;
   let baseUrl = document.getElementById('settingsBaseUrl').value;
   const apiKey = document.getElementById('settingsApiKey').value;
@@ -1388,29 +1377,52 @@ function saveSettings() {
   localStorage.setItem('video_width', width);
   localStorage.setItem('video_height', height);
   localStorage.setItem('video_fps', fps);
-  
-  // 显示成功提示
-  alert('✅ 设置已保存！\n\n提供商：' + provider + '\n模型：' + model);
-  
-  // 关闭模态框
-  const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
-  if (modal) {
-    modal.hide();
+
+  // 同步到后端
+  const saveBtn = document.querySelector('.modal-footer .btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>保存中...'; }
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        openai_api_key: apiKey || null,
+        openai_base_url: baseUrl || null,
+        openai_model: model || null,
+        video_width: width,
+        video_height: height,
+        video_fps: fps
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '保存失败');
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+    if (modal) modal.hide();
+
+    showSettingsToast('设置已保存并同步到服务端', 'success');
+  } catch (e) {
+    showSettingsToast('本地已保存，但同步服务端失败：' + e.message, 'warning');
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="bi bi-save me-1"></i>保存设置'; }
   }
-  
-  // 触发自定义事件，通知其他组件
+
   window.dispatchEvent(new CustomEvent('settings-updated', {
-    detail: {
-      llm_provider: provider,
-      openai_base_url: baseUrl,
-      openai_api_key: apiKey,
-      openai_model: model,
-      quality_preset: quality,
-      video_width: width,
-      video_height: height,
-      video_fps: fps
-    }
+    detail: { llm_provider: provider, openai_base_url: baseUrl, openai_model: model }
   }));
+}
+
+function showSettingsToast(msg, type) {
+  const colors = { success: 'alert-success', warning: 'alert-warning', danger: 'alert-danger' };
+  const el = document.createElement('div');
+  el.className = `alert ${colors[type] || 'alert-info'} position-fixed top-0 start-50 translate-middle-x mt-4 shadow-lg`;
+  el.style.zIndex = '99999';
+  el.style.minWidth = '320px';
+  el.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}-fill me-2"></i>${msg}`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; }, 3000);
+  setTimeout(() => el.remove(), 3300);
 }
 
 // 重置设置
@@ -1428,12 +1440,23 @@ function openOutputDir() {
   alert(`输出目录：${outputDir}\n\n(实际打开目录功能需要后端支持)`);
 }
 
-// 页面加载时初始化
-document.addEventListener('DOMContentLoaded', loadSettings);
+async function syncSettingsFromServer() {
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.openai_base_url) localStorage.setItem('openai_base_url', data.openai_base_url);
+    if (data.openai_model) localStorage.setItem('openai_model', data.openai_model);
+  } catch (e) { /* 离线时用 localStorage */ }
+}
 
-// 如果 DOM 已加载完成，立即执行
-if (document.readyState !== 'loading') {
+document.addEventListener('DOMContentLoaded', async () => {
+  await syncSettingsFromServer();
   loadSettings();
+});
+
+if (document.readyState !== 'loading') {
+  syncSettingsFromServer().then(loadSettings);
 }
 </script>
 

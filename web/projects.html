@@ -105,7 +105,7 @@
                                 <h5 class="mb-1 fw-bold">
                                     <i class="bi bi-film me-2 text-primary"></i>{{ project.displayName }}
                                 </h5>
-                                <p class="text-muted small mb-0">{{ project.description }}</p>
+                                <p class="text-muted small mb-0">{{ project.descriptionZh || project.description }}</p>
                             </div>
                             <span v-if="project.recommended" class="badge bg-success">
                                 <i class="bi bi-star-fill me-1"></i>推荐
@@ -213,6 +213,13 @@
             video_platform_introduction: '平台介绍教程'
         }
 
+        const PROJECT_DESCRIPTIONS = {
+            v2_templates: '支持 6+ 种图表模板的通用视频渲染器',
+            loan_comparison: '贷款方案利息对比与还款时间线可视化',
+            fund_fee_erosion: '基金手续费复利侵蚀效应数据动画',
+            video_platform_introduction: '平台功能介绍新手教程视频'
+        }
+
         const { createApp } = Vue
 
         createApp({
@@ -261,6 +268,7 @@
                             return {
                                 ...p,
                                 displayName: PROJECT_DISPLAY_NAMES[p.name] || p.name,
+                                descriptionZh: PROJECT_DESCRIPTIONS[p.name] || '',
                                 recommended: recommended.includes(p.name),
                                 videoTasks,
                                 _executing: null
